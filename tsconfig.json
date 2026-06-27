@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@cs/shared": ["./packages/shared/src/index.ts"],
+      "@cs/client": ["./packages/client/src/index.ts"],
+      "@cs/server": ["./packages/server/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src", "tests"]
+}

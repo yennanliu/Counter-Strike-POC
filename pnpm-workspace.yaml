@@ -1,0 +1,9 @@
+packages:
+  - "packages/*"
+
+allowBuilds:
+  esbuild: true
+
+# esbuild ships a postinstall that fetches its native binary; vitest needs it.
+onlyBuiltDependencies:
+  - esbuild

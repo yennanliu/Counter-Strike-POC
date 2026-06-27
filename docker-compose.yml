@@ -1,0 +1,35 @@
+# Local dev orchestration. Mirrors the AWS topology (system-design.md §3.1) with
+# local equivalents: the game server runs as a container; Postgres/Redis are
+# provided here for parity but are OPTIONAL — by default the server uses SQLite
+# and in-process presence, so you can ignore the `postgres`/`redis` services
+# until you want to exercise the prod-shaped adapters.
+services:
+  server:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.server
+    environment:
+      NODE_ENV: development
+      PORT: "2567"
+      DB_URL: sqlite:./data/dev.db
+      REPLAY_STORE: file:./data/replays
+    ports:
+      - "2567:2567"
+    volumes:
+      - ./data:/app/data
+
+  # Optional parity services — enable with: docker compose --profile prod-parity up
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["prod-parity"]
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: cs
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["prod-parity"]
+    ports:
+      - "6379:6379"
