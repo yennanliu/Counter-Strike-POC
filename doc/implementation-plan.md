@@ -10,7 +10,7 @@
 
 ## Current status (2026-06-27)
 
-**Done: P0 → P4.** **Next: P5 (persistence & replay).**
+**Done: P0 → P5.** **Next: P6 (browser client & E2E — first visually playable milestone).**
 
 | | |
 |---|---|
@@ -19,20 +19,20 @@
 | ✅ **P2** | Authoritative netcode — Colyseus `GameRoom`, input validation, client prediction/reconciliation, entity interpolation |
 | ✅ **P3** | Combat & scoring — hitscan damage/headshots/death/respawn, K/D/A + assists, 5-player cap |
 | ✅ **P4** | Rounds FSM (freeze→live→ended), lobby + matchmaking, `MapRegistry` + 5 fields |
-| ⏳ **P5** | **NEXT** — persistence (SQLite→Postgres) + replay recorder + replay store (local→S3) |
-| ⬜ **P6** | Browser client (Three.js) & E2E — the first visually playable milestone |
+| ✅ **P5** | Persistence (SQLite via `node:sqlite`) + input-log replay recorder + replay store (file / memory-S3-stub), env-wired into GameRoom |
+| ⏳ **P6** | **NEXT** — browser client (Three.js) & E2E; the first visually playable milestone |
 | ⬜ **P7** | Stretch — bomb mode, economy, lag comp, UDP, AWS infra hardening |
 
-**Where things stand:** 74 tests passing; typecheck clean; `shared/sim` coverage
+**Where things stand:** 92 tests passing; typecheck clean; `shared/sim` coverage
 100% stmt / 95% branch. The authoritative server runs (`pnpm --filter @cs/server dev`)
-with combat, rounds, 5 selectable maps, and a lobby. There is **no rendered client
-yet** — that's P6. Test inventory below tracks each behavior (✅ = landed).
+with combat, rounds, 5 selectable maps, a lobby, and **opt-in persistence** (set
+`DB_URL` / `REPLAY_STORE`). There is **no rendered client yet** — that's P6.
 
-**To start P5:** implement `packages/server/src/persistence/db.ts` (SQLite dev /
-Postgres prod adapters, match summary round-trip — T-070) and
-`recording/recorder.ts` (input-log replay that re-simulates to an identical final
-state — T-071), then `persistence/replayStore.ts` (local fs / S3 — T-072). The
-server already keeps the authoritative tick state the recorder needs.
+**To start P6:** build `packages/client` rendering on top of the already-tested
+net layer (`Predictor`, `InterpolationBuffer`). Test-first targets: input mapping
+(T-080, jsdom), a two-browser Playwright smoke (T-081), and the replay viewer
+(T-082) which re-feeds a recorded blob (`deserializeRecording` + `replayToSim`)
+through the same renderer.
 
 ---
 
@@ -79,8 +79,8 @@ server already keeps the authoritative tick state the recorder needs.
 | **P2** | ✅ done | Authoritative netcode | GameRoom tick, input validation, prediction/reconciliation, interpolation | 2 simulated clients converge with server in integration tests |
 | **P3** | ✅ done | Combat & scoring | Damage/HP/death/respawn, scoreboard, 5-player cap | Full kill→score flow tested server-side |
 | **P4** | ✅ done | Rounds, lobby & 5 fields | Round state machine, team assign, lobby/matchmaking, MapRegistry + 5 maps | Create/join room on any of 5 maps; round cycle tested |
-| **P5** | ⏳ next | Persistence & replay | SQLite/Postgres adapter, S3/local replay store, recorder, replay viewer | Match summary + replay round-trip tested; viewer replays a recorded match |
-| **P6** | ⬜ todo | Client render & E2E | Three.js scene, HUD, pointer-lock input, Playwright smoke | Two browsers join a room and see each other move |
+| **P5** | ✅ done | Persistence & replay | SQLite/Postgres adapter, S3/local replay store, recorder, replay viewer | Match summary + replay round-trip tested; viewer replays a recorded match |
+| **P6** | ⏳ next | Client render & E2E | Three.js scene, HUD, pointer-lock input, Playwright smoke | Two browsers join a room and see each other move |
 | **P7 (stretch)** | ⬜ todo | Bomb mode, economy, lag comp, UDP, AWS infra hardening | per design §10 M5 | — |
 
 > Phases map to design doc §10 milestones (P0–P1≈M0, P2≈M1, P3≈M2, P4≈M3, P5≈M4, P6 ties it together, P7≈M5).
@@ -300,15 +300,15 @@ the behavior test (e.g. “server rewinds N ms and validates the historical hit�
 | T-060 | ✅ | P4 | round FSM transitions on timer & elimination | unit |
 | T-061 | ✅ | P4 | all 5 map manifests validate & load | unit |
 | T-062 | ✅ | P4 | create/join/list room via lobby + team balance | wire |
-| T-070 | ⬜ | P5 | match summary DB round-trip (SQLite + Postgres) | integration |
-| T-071 | ⬜ | P5 | replay log replays to identical final state | integration |
-| T-072 | ⬜ | P5 | replay store put/get round-trip (local + S3 mock) | integration |
+| T-070 | ✅ | P5 | match summary DB round-trip (SQLite; Postgres = deploy adapter) | integration |
+| T-071 | ✅ | P5 | replay log replays to identical final state | integration |
+| T-072 | ✅ | P5 | replay store put/get round-trip (local + memory/S3-stub) | integration |
 | T-080 | ⬜ | P6 | key/mouse → moveVec/yaw mapping | unit |
 | T-081 | ⬜ | P6 | two browsers see each other move | e2e |
 | T-082 | ⬜ | P6 | replay viewer reaches same final scoreboard | e2e |
 
 This inventory is the live checklist — add a row before you write code, check it off on green.
-**Done: T-001 … T-062 (15 behaviors). Next: T-070 (P5).**
+**Done: T-001 … T-072 (18 behaviors). Next: T-080 (P6).**
 
 ### Notes from implementation (deviations worth knowing)
 
@@ -322,3 +322,10 @@ This inventory is the live checklist — add a row before you write code, check 
   to its ESM build in `vitest.config.ts`.
 - **T-062** uses Colyseus's built-in `LobbyRoom` "rooms" message for listing
   (the 0.16 client SDK has no `getAvailableRooms`).
+- **P5 persistence:** SQLite uses Node's built-in `node:sqlite` (no native build).
+  The **Postgres** (RDS) and **S3** adapters are deploy-time — they implement the
+  same `MatchStore` / `ReplayStore` interfaces and the env factory throws a clear
+  "add at deploy" error for `postgres:`/`s3:` URLs. Tests cover SQLite + a
+  `MemoryReplayStore` that stands in for S3. Persistence is **off unless `DB_URL`
+  is set**, wired into `GameRoom` (records inputs/keyframes, saves summary + replay
+  blob on `matchOver`).

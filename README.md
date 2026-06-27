@@ -18,8 +18,8 @@ fields, and saved match replays — built reuse-first on a small web stack.
 | **P2** | Authoritative netcode: Colyseus GameRoom, input validation, prediction/reconciliation, interpolation | ✅ done |
 | **P3** | Combat & scoring: hitscan damage/headshots/death/respawn, K/D/A + assists, 5-player cap | ✅ done |
 | **P4** | Rounds (freeze→live→ended FSM), lobby + matchmaking, MapRegistry + 5 fields | ✅ done |
-| P5 | Persistence & replay (SQLite/Postgres + S3/local) | ⏳ next |
-| P6 | Client render (Three.js) & E2E | ⏳ |
+| **P5** | Persistence & replay: SQLite match store, input-log replay recorder, file/memory(S3-stub) store, env-wired | ✅ done |
+| P6 | Client render (Three.js) & E2E | ⏳ next |
 
 ---
 
@@ -51,6 +51,10 @@ First install builds esbuild's native binary (needed by Vitest). It is approved 
 | `pnpm test:cov` | Run with coverage; **fails under 90%** on `packages/shared/src/sim` |
 | `pnpm typecheck` | `tsc --noEmit` across the whole workspace |
 | `pnpm --filter @cs/server dev` | Run the authoritative game server (ws://localhost:2567) |
+
+Persistence is opt-in via env (off by default): set `DB_URL=sqlite:./data/dev.db`
+and `REPLAY_STORE=file:./data/replays` to save match summaries + input-log replays
+(prod swaps these for Postgres/S3 behind the same interfaces).
 
 > The **server runs now** (P2): an authoritative Colyseus `GameRoom` (5-player cap)
 > that validates inputs and delta-syncs state. The browser client/renderer lands in

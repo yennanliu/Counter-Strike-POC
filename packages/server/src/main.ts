@@ -8,8 +8,18 @@
 import { Server } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { appConfig } from "./app.config.js";
+import { configurePersistence } from "./rooms/GameRoom.js";
+import { matchStoreFromEnv, replayStoreFromEnv } from "./persistence/factory.js";
 
 const port = Number(process.env.PORT ?? 2567);
+
+// Wire persistence from env (DB_URL / REPLAY_STORE). Unset → disabled.
+const db = matchStoreFromEnv(process.env.DB_URL);
+if (db) {
+  await db.init();
+  configurePersistence({ db, replays: replayStoreFromEnv(process.env.REPLAY_STORE) });
+  console.log(`[cs] persistence enabled (DB_URL=${process.env.DB_URL})`);
+}
 
 const gameServer = new Server({
   transport: new WebSocketTransport(),

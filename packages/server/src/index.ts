@@ -18,3 +18,16 @@ export { GameRoom } from "./rooms/GameRoom.js";
 export { GameState, PlayerState } from "./state/schema.js";
 export { DEFAULT_ARENA } from "./maps/arena.js";
 export { appConfig } from "./app.config.js";
+
+// Persistence & replay (P5)
+export { SqliteMatchStore } from "./persistence/db.js";
+export type { MatchStore, MatchSummary, MatchPlayerStat } from "./persistence/db.js";
+export { FileReplayStore, MemoryReplayStore } from "./persistence/replayStore.js";
+export type { ReplayStore } from "./persistence/replayStore.js";
+export {
+  ReplayRecorder,
+  replayToSim,
+  serializeRecording,
+  deserializeRecording,
+} from "./recording/recorder.js";
+export type { ReplayRecording, Keyframe, ReplayInput } from "./recording/recorder.js";
