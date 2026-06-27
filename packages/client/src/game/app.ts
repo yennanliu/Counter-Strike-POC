@@ -21,6 +21,8 @@ interface Hud {
   scoreboard: HTMLElement;
 }
 
+export type Logger = (msg: string) => void;
+
 const noColliders = { colliders: [] as AABB[] };
 const now = () => performance.now() / 1000;
 
@@ -29,19 +31,32 @@ export async function startGame(
   hud: Hud,
   endpoint: string,
   mapId: string,
+  log: Logger = (m) => console.log("[cs]", m),
 ): Promise<void> {
+  log(`connecting to ${endpoint} · map=${mapId}`);
   const client = new Client(endpoint);
-  const room: Room = await withTimeout(
-    client.joinOrCreate("game", { mapId }),
-    8000,
-    `No response from the game server at ${endpoint}. Is it running? ` +
-      `Start it with:  pnpm --filter @cs/server dev`,
-  );
+
+  let room: Room;
+  try {
+    room = await withTimeout(
+      client.joinOrCreate("game", { mapId }),
+      8000,
+      `timed out after 8s waiting for ${endpoint} — is the server running? (pnpm --filter @cs/server dev)`,
+    );
+  } catch (err) {
+    log(`✗ joinOrCreate failed: ${(err as Error).message || "(no message)"}`);
+    throw err;
+  }
   const localId = room.sessionId;
+  log(`✓ joined room ${room.roomId} as ${localId}`);
+
+  room.onError((code: number, message?: string) => log(`room error ${code}: ${message ?? ""}`));
+  room.onLeave((code: number) => log(`left room (code ${code})`));
 
   const scene = new SceneManager();
   const renderer = new Renderer(canvas);
   const controls = new Controls(canvas);
+  log("renderer + input ready");
 
   // Test hook: lets the E2E read who's connected and where they are.
   (globalThis as unknown as { __cs?: unknown }).__cs = {
@@ -63,14 +78,22 @@ export async function startGame(
   let predictor: Predictor | null = null;
   const remotes = new Map<string, InterpolationBuffer>();
   let seq = 0;
+  let stateCount = 0;
 
   // Reconcile local + buffer remotes whenever the server patches state.
   room.onStateChange(() => {
+    stateCount += 1;
+    if (stateCount === 1) {
+      log(`first state patch · players=${room.state?.players?.size ?? "?"}`);
+    }
     const present = new Set<string>();
     room.state.players.forEach((p: PlayerSchema, id: string) => {
       present.add(id);
       if (id === localId) {
-        if (!predictor) predictor = new Predictor({ x: p.x, y: p.y, z: p.z }, noColliders);
+        if (!predictor) {
+          predictor = new Predictor({ x: p.x, y: p.y, z: p.z }, noColliders);
+          log(`local player spawned at (${p.x.toFixed(1)}, ${p.z.toFixed(1)}) team=${p.team}`);
+        }
         predictor.reconcile({
           pos: { x: p.x, y: p.y, z: p.z },
           lastProcessedSeq: p.lastProcessedSeq,
@@ -122,6 +145,7 @@ export async function startGame(
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
+  log("✓ in game (render loop running)");
 }
 
 interface PlayerSchema {
