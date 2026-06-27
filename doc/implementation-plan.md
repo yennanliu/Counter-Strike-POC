@@ -10,7 +10,7 @@
 
 ## Current status (2026-06-27)
 
-**Done: P0 → P5.** **Next: P6 (browser client & E2E — first visually playable milestone).**
+**Done: P0 → P6 — the game is playable in the browser.** **Next: P7 (stretch) or polish.**
 
 | | |
 |---|---|
@@ -20,19 +20,18 @@
 | ✅ **P3** | Combat & scoring — hitscan damage/headshots/death/respawn, K/D/A + assists, 5-player cap |
 | ✅ **P4** | Rounds FSM (freeze→live→ended), lobby + matchmaking, `MapRegistry` + 5 fields |
 | ✅ **P5** | Persistence (SQLite via `node:sqlite`) + input-log replay recorder + replay store (file / memory-S3-stub), env-wired into GameRoom |
-| ⏳ **P6** | **NEXT** — browser client (Three.js) & E2E; the first visually playable milestone |
-| ⬜ **P7** | Stretch — bomb mode, economy, lag comp, UDP, AWS infra hardening |
+| ✅ **P6** | Browser client — Three.js first-person render, pointer-lock input, prediction/interpolation, HUD; two-browser Playwright E2E |
+| ⬜ **P7** | Stretch — bomb mode, economy, lag comp, UDP transport, AWS infra (CDK), anti-cheat |
 
-**Where things stand:** 92 tests passing; typecheck clean; `shared/sim` coverage
-100% stmt / 95% branch. The authoritative server runs (`pnpm --filter @cs/server dev`)
-with combat, rounds, 5 selectable maps, a lobby, and **opt-in persistence** (set
-`DB_URL` / `REPLAY_STORE`). There is **no rendered client yet** — that's P6.
+**Where things stand:** 102 unit/integration tests passing + a Playwright E2E;
+typecheck clean; `shared/sim` coverage 100% stmt / 95% branch. **Playable now:**
+run `pnpm --filter @cs/server dev` + `pnpm --filter @cs/client dev`, open
+http://localhost:5173 (WASD + mouse + click). Persistence is opt-in via `DB_URL` /
+`REPLAY_STORE`.
 
-**To start P6:** build `packages/client` rendering on top of the already-tested
-net layer (`Predictor`, `InterpolationBuffer`). Test-first targets: input mapping
-(T-080, jsdom), a two-browser Playwright smoke (T-081), and the replay viewer
-(T-082) which re-feeds a recorded blob (`deserializeRecording` + `replayToSim`)
-through the same renderer.
+**Next options (P7 / polish):** render real map geometry on the client (ship
+manifests to the browser); a browser replay-viewer page (the `ReplayViewer` model
++ scoreboard already exist); bomb/defuse mode; lag compensation; the AWS CDK stack.
 
 ---
 
@@ -80,7 +79,7 @@ through the same renderer.
 | **P3** | ✅ done | Combat & scoring | Damage/HP/death/respawn, scoreboard, 5-player cap | Full kill→score flow tested server-side |
 | **P4** | ✅ done | Rounds, lobby & 5 fields | Round state machine, team assign, lobby/matchmaking, MapRegistry + 5 maps | Create/join room on any of 5 maps; round cycle tested |
 | **P5** | ✅ done | Persistence & replay | SQLite/Postgres adapter, S3/local replay store, recorder, replay viewer | Match summary + replay round-trip tested; viewer replays a recorded match |
-| **P6** | ⏳ next | Client render & E2E | Three.js scene, HUD, pointer-lock input, Playwright smoke | Two browsers join a room and see each other move |
+| **P6** | ✅ done | Client render & E2E | Three.js scene, HUD, pointer-lock input, Playwright smoke | Two browsers join a room and see each other move |
 | **P7 (stretch)** | ⬜ todo | Bomb mode, economy, lag comp, UDP, AWS infra hardening | per design §10 M5 | — |
 
 > Phases map to design doc §10 milestones (P0–P1≈M0, P2≈M1, P3≈M2, P4≈M3, P5≈M4, P6 ties it together, P7≈M5).
@@ -303,12 +302,12 @@ the behavior test (e.g. “server rewinds N ms and validates the historical hit�
 | T-070 | ✅ | P5 | match summary DB round-trip (SQLite; Postgres = deploy adapter) | integration |
 | T-071 | ✅ | P5 | replay log replays to identical final state | integration |
 | T-072 | ✅ | P5 | replay store put/get round-trip (local + memory/S3-stub) | integration |
-| T-080 | ⬜ | P6 | key/mouse → moveVec/yaw mapping | unit |
-| T-081 | ⬜ | P6 | two browsers see each other move | e2e |
-| T-082 | ⬜ | P6 | replay viewer reaches same final scoreboard | e2e |
+| T-080 | ✅ | P6 | key/mouse → moveVec/yaw mapping | unit |
+| T-081 | ✅ | P6 | two browsers see each other move | e2e (Playwright) |
+| T-082 | ✅ | P6 | replay viewer reaches same final scoreboard | unit (viewer model) |
 
 This inventory is the live checklist — add a row before you write code, check it off on green.
-**Done: T-001 … T-072 (18 behaviors). Next: T-080 (P6).**
+**Done: T-001 … T-082 (21 behaviors). All planned phases (P0–P6) complete.**
 
 ### Notes from implementation (deviations worth knowing)
 
@@ -322,6 +321,12 @@ This inventory is the live checklist — add a row before you write code, check 
   to its ESM build in `vitest.config.ts`.
 - **T-062** uses Colyseus's built-in `LobbyRoom` "rooms" message for listing
   (the 0.16 client SDK has no `getAvailableRooms`).
+- **P6 client:** scene-graph (`SceneManager`), input mapping, scoreboard and the
+  replay viewer are unit-tested (Three.js scene objects work in Node without a GL
+  context); the app wiring (`app.ts`/renderer/controls) is smoke-tested by
+  `vite build`. **T-082** is implemented as a unit test on the `ReplayViewer` model
+  (final scoreboard from keyframes == live), not a browser test. The client renders
+  ground + players only (map collider geometry on the client is a follow-up).
 - **P5 persistence:** SQLite uses Node's built-in `node:sqlite` (no native build).
   The **Postgres** (RDS) and **S3** adapters are deploy-time — they implement the
   same `MatchStore` / `ReplayStore` interfaces and the env factory throws a clear

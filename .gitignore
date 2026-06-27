@@ -6,3 +6,8 @@ coverage/
 .env.local
 data/
 .DS_Store
+
+# Playwright
+test-results/
+playwright-report/
+.playwright/

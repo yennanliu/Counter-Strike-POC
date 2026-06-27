@@ -3,6 +3,9 @@
   "compilerOptions": {
     "noEmit": true,
     "types": ["node"],
+    // DOM for the browser client (packages/client); harmless for server/shared,
+    // which simply don't touch DOM globals.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
       "@cs/shared": ["./packages/shared/src/index.ts"],
       "@cs/client": ["./packages/client/src/index.ts"],
