@@ -14,6 +14,8 @@
       #hp { position: fixed; left: 12px; bottom: 12px; font-size: 28px; font-weight: bold; text-shadow: 0 1px 2px #000; }
       #scoreboard { position: fixed; right: 12px; top: 12px; font-size: 13px; text-align: right; line-height: 1.5; text-shadow: 0 1px 2px #000; }
       #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); pointer-events: auto; }
+      /* explicit display:flex above beats the UA [hidden] rule, so hide explicitly */
+      [hidden] { display: none !important; }
       #overlay .card { background: #1b1b1b; border: 1px solid #333; padding: 24px 28px; border-radius: 10px; text-align: center; }
       #overlay h1 { font-size: 20px; margin-bottom: 6px; }
       #overlay p { font-size: 13px; color: #aaa; margin-bottom: 16px; }
