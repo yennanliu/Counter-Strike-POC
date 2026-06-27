@@ -14,6 +14,10 @@ export interface InputCommand {
   moveVec: { x: number; z: number };
   /** Facing yaw in radians. */
   yaw: number;
+  /** Look pitch in radians (up positive); used for aiming. Defaults to 0. */
+  pitch?: number;
+  /** Whether the player fired this tick. */
+  fire?: boolean;
 }
 
 export function applyInput(

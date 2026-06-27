@@ -10,7 +10,10 @@ export const serverConfig = {
 } as const;
 
 export { GameSimulation } from "./sim/GameSimulation.js";
-export type { Arena, PlayerSim, Team } from "./sim/GameSimulation.js";
+export type { Arena, PlayerSim, Team, ShotResult } from "./sim/GameSimulation.js";
+export { RoundManager, DEFAULT_ROUND_CONFIG } from "./round/RoundManager.js";
+export type { RoundConfig, RoundPhase } from "./round/RoundManager.js";
+export { MapRegistry, validateManifest, arenaFromManifest } from "./maps/MapRegistry.js";
 export { GameRoom } from "./rooms/GameRoom.js";
 export { GameState, PlayerState } from "./state/schema.js";
 export { DEFAULT_ARENA } from "./maps/arena.js";

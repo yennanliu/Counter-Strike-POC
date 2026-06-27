@@ -15,7 +15,7 @@ import { WebSocketTransport } from "@colyseus/ws-transport";
 import { Client } from "colyseus.js";
 import { appConfig } from "../app.config.js";
 import type { GameState } from "../state/schema.js";
-import { PLAYER_SPEED, TICK_DT } from "@cs/shared";
+import { PLAYER_SPEED, TICK_DT, MAX_PLAYERS } from "@cs/shared";
 
 const PORT = 2576;
 const ENDPOINT = `ws://127.0.0.1:${PORT}`;
@@ -74,6 +74,61 @@ try {
     `oversized move clamped (dist=${dist})`,
   );
   await r2.leave();
+
+  // T-062: lobby — create on a chosen map, listed with metadata, join by id;
+  // T-051: cap — 5 fit, 6th rejected; teams auto-balance.
+  const host = new Client(ENDPOINT);
+  const room = await host.create<GameState>("game", { mapId: "office" });
+  await until(() => room.state.players.get(room.sessionId) !== undefined);
+  const roomId = room.roomId;
+
+  // Listed in the lobby with its map metadata (join lobby, read "rooms" snapshot).
+  const lobbyClient = new Client(ENDPOINT);
+  const lobby = await lobbyClient.joinOrCreate("lobby");
+  const listed = await new Promise<boolean>((resolve) => {
+    const timer = setTimeout(() => resolve(false), 4000);
+    const seen = (rooms: Array<{ roomId?: string; metadata?: { mapId?: string } }>) => {
+      if (rooms.some((r) => r.metadata?.mapId === "office")) {
+        clearTimeout(timer);
+        resolve(true);
+      }
+    };
+    lobby.onMessage("rooms", seen);
+    lobby.onMessage("+", ([, data]: [string, { metadata?: { mapId?: string } }]) =>
+      seen([data]),
+    );
+  });
+  assert.ok(listed, "created room is listed in the lobby with its mapId");
+  await lobby.leave();
+  void roomId;
+
+  const joiners = [];
+  for (let i = 0; i < MAX_PLAYERS - 1; i++) {
+    const c = new Client(ENDPOINT);
+    const jr = await c.joinById<GameState>(roomId);
+    await until(() => jr.state.players.get(jr.sessionId) !== undefined);
+    joiners.push(jr);
+  }
+  await until(() => room.state.players.size === MAX_PLAYERS);
+
+  let tCount = 0;
+  let ctCount = 0;
+  room.state.players.forEach((p) => (p.team === "T" ? tCount++ : ctCount++));
+  assert.ok(
+    Math.abs(tCount - ctCount) <= 1,
+    `teams auto-balanced (${ctCount} CT / ${tCount} T)`,
+  );
+
+  let sixthRejected = false;
+  try {
+    const c6 = new Client(ENDPOINT);
+    await c6.joinById(roomId);
+  } catch {
+    sixthRejected = true;
+  }
+  assert.ok(sixthRejected, "6th join rejected (5-player cap)");
+
+  await Promise.all([room.leave(), ...joiners.map((j) => j.leave())]);
 
   console.log("WIRE_CHECK_OK");
   await server.gracefullyShutdown(false);

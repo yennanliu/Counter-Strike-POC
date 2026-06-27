@@ -16,9 +16,9 @@ fields, and saved match replays — built reuse-first on a small web stack.
 | **P0** | Monorepo, CI, walking-skeleton contract test | ✅ done |
 | **P1** | Shared deterministic sim: constants, movement + collision, hitscan | ✅ done |
 | **P2** | Authoritative netcode: Colyseus GameRoom, input validation, prediction/reconciliation, interpolation | ✅ done |
-| P3 | Combat & scoring (damage/HP/death/respawn, 5-player cap) | ⏳ next |
-| P4 | Rounds, lobby & 5 fields | ⏳ |
-| P5 | Persistence & replay (SQLite/Postgres + S3/local) | ⏳ |
+| **P3** | Combat & scoring: hitscan damage/headshots/death/respawn, K/D/A + assists, 5-player cap | ✅ done |
+| **P4** | Rounds (freeze→live→ended FSM), lobby + matchmaking, MapRegistry + 5 fields | ✅ done |
+| P5 | Persistence & replay (SQLite/Postgres + S3/local) | ⏳ next |
 | P6 | Client render (Three.js) & E2E | ⏳ |
 
 ---

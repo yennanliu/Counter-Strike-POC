@@ -1,9 +1,13 @@
 /**
  * Game-server configuration shared by the runtime entry (index.ts) and the
- * @colyseus/testing harness. Registers the rooms; transport/listen is handled by
- * the caller.
+ * over-the-wire check. Registers the rooms; transport/listen is the caller's job.
+ *
+ * - "game"  : the authoritative GameRoom, with realtime lobby listing enabled so
+ *             created rooms show up in the lobby with their map metadata.
+ * - "lobby" : Colyseus's built-in LobbyRoom — clients join it to list/browse
+ *             available game rooms (powers the future lobby UI).
  */
-import type { Server } from "@colyseus/core";
+import { LobbyRoom, type Server } from "@colyseus/core";
 import { GameRoom } from "./rooms/GameRoom.js";
 
 export interface AppConfig {
@@ -12,7 +16,8 @@ export interface AppConfig {
 
 export const appConfig: AppConfig = {
   initializeGameServer: (gameServer) => {
-    gameServer.define("game", GameRoom);
+    gameServer.define("game", GameRoom).enableRealtimeListing();
+    gameServer.define("lobby", LobbyRoom);
   },
 };
 

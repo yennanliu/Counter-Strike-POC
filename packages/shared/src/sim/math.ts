@@ -36,3 +36,14 @@ export const normalize = (a: Vec3): Vec3 => {
 /** Clamp a number into [min, max]. */
 export const clamp = (v: number, min: number, max: number): number =>
   v < min ? min : v > max ? max : v;
+
+/**
+ * Unit forward direction from a yaw (about +Y) and pitch (up positive). Matches
+ * the movement yaw convention: at yaw=0, pitch=0 the forward is +Z. Used for
+ * aiming/hitscan so the shooting ray agrees with how the player faces.
+ */
+export const forwardFromYawPitch = (yaw: number, pitch: number): Vec3 => ({
+  x: Math.cos(pitch) * Math.sin(yaw),
+  y: Math.sin(pitch),
+  z: Math.cos(pitch) * Math.cos(yaw),
+});

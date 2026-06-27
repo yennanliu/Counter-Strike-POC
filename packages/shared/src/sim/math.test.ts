@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { vec3, add, sub, scale, length, normalize, clamp } from "./math.js";
+import {
+  vec3,
+  add,
+  sub,
+  scale,
+  length,
+  normalize,
+  clamp,
+  forwardFromYawPitch,
+} from "./math.js";
 
 describe("vec3 math", () => {
   it("add / sub / scale component-wise", () => {
@@ -23,5 +32,20 @@ describe("vec3 math", () => {
     expect(clamp(-5, 0, 10)).toBe(0);
     expect(clamp(15, 0, 10)).toBe(10);
     expect(clamp(5, 0, 10)).toBe(5);
+  });
+
+  it("forwardFromYawPitch points +Z at yaw0/pitch0 and rotates with yaw", () => {
+    const f0 = forwardFromYawPitch(0, 0);
+    expect(f0.x).toBeCloseTo(0);
+    expect(f0.y).toBeCloseTo(0);
+    expect(f0.z).toBeCloseTo(1);
+
+    const fRight = forwardFromYawPitch(Math.PI / 2, 0); // yaw 90° → +X
+    expect(fRight.x).toBeCloseTo(1);
+    expect(fRight.z).toBeCloseTo(0);
+
+    const fUp = forwardFromYawPitch(0, Math.PI / 2); // pitch up → +Y
+    expect(fUp.y).toBeCloseTo(1);
+    expect(length(fUp)).toBeCloseTo(1);
   });
 });
