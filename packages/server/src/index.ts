@@ -8,3 +8,10 @@ import { TICK_RATE } from "@cs/shared";
 export const serverConfig = {
   tickRate: TICK_RATE,
 } as const;
+
+export { GameSimulation } from "./sim/GameSimulation.js";
+export type { Arena, PlayerSim, Team } from "./sim/GameSimulation.js";
+export { GameRoom } from "./rooms/GameRoom.js";
+export { GameState, PlayerState } from "./state/schema.js";
+export { DEFAULT_ARENA } from "./maps/arena.js";
+export { appConfig } from "./app.config.js";

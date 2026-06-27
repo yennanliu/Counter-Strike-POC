@@ -8,3 +8,8 @@ import { TICK_RATE } from "@cs/shared";
 export const clientConfig = {
   tickRate: TICK_RATE,
 } as const;
+
+export { Predictor } from "./net/prediction.js";
+export type { ServerSnapshot } from "./net/prediction.js";
+export { InterpolationBuffer } from "./net/interpolation.js";
+export type { TimedSnapshot } from "./net/interpolation.js";

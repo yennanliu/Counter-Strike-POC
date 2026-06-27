@@ -3,6 +3,7 @@ packages:
 
 allowBuilds:
   esbuild: true
+  msgpackr-extract: set this to true or false
 
 # esbuild ships a postinstall that fetches its native binary; vitest needs it.
 onlyBuiltDependencies:

@@ -2,7 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": ["node"]
+    "types": ["node"],
+    // @colyseus/schema tracks changes via property accessors set up by
+    // defineTypes(). Native class-field semantics ([[Define]]) would shadow those
+    // accessors so fields never get encoded/synced — assignment semantics keep
+    // the tracking intact.
+    "useDefineForClassFields": false
   },
   "include": ["src"]
 }

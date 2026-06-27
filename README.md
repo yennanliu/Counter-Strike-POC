@@ -15,8 +15,8 @@ fields, and saved match replays — built reuse-first on a small web stack.
 |-------|-------|-------|
 | **P0** | Monorepo, CI, walking-skeleton contract test | ✅ done |
 | **P1** | Shared deterministic sim: constants, movement + collision, hitscan | ✅ done |
-| P2 | Authoritative netcode (GameRoom tick, prediction/reconciliation, interpolation) | ⏳ next |
-| P3 | Combat & scoring (damage/HP/death/respawn, 5-player cap) | ⏳ |
+| **P2** | Authoritative netcode: Colyseus GameRoom, input validation, prediction/reconciliation, interpolation | ✅ done |
+| P3 | Combat & scoring (damage/HP/death/respawn, 5-player cap) | ⏳ next |
 | P4 | Rounds, lobby & 5 fields | ⏳ |
 | P5 | Persistence & replay (SQLite/Postgres + S3/local) | ⏳ |
 | P6 | Client render (Three.js) & E2E | ⏳ |
@@ -50,10 +50,13 @@ First install builds esbuild's native binary (needed by Vitest). It is approved 
 | `pnpm test:watch` | TDD watch mode (re-runs on change) |
 | `pnpm test:cov` | Run with coverage; **fails under 90%** on `packages/shared/src/sim` |
 | `pnpm typecheck` | `tsc --noEmit` across the whole workspace |
+| `pnpm --filter @cs/server dev` | Run the authoritative game server (ws://localhost:2567) |
 
-> The game server and browser client land in **P2 / P6**. Until then this repo is
-> the tested **simulation core** — there is no app to launch yet, by design (see the
-> build order below). Run the tests to exercise it.
+> The **server runs now** (P2): an authoritative Colyseus `GameRoom` (5-player cap)
+> that validates inputs and delta-syncs state. The browser client/renderer lands in
+> **P6** — until then, exercise the server with the tests (including a real
+> server + `colyseus.js` client wire test) and the netcode via the prediction/
+> reconciliation/interpolation unit + integration tests.
 
 ---
 
