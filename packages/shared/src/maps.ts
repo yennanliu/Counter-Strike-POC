@@ -7,6 +7,14 @@
 import type { Vec3 } from "./sim/math.js";
 import type { AABB } from "./sim/movement.js";
 
+/** Visual palette so each field looks distinct (client rendering only). */
+export interface MapTheme {
+  sky: number;
+  ground: number;
+  fog: number;
+  structure: number;
+}
+
 export interface MapManifest {
   id: string;
   version: number;
@@ -17,6 +25,8 @@ export interface MapManifest {
   spawns: { T: Vec3[]; CT: Vec3[] };
   /** Static world collision boxes (also rendered by the client). */
   colliders: AABB[];
+  /** Optional visual theme; the client falls back to a default if absent. */
+  theme?: MapTheme;
 }
 
 const box = (
@@ -34,6 +44,7 @@ export const ALL_MAPS: MapManifest[] = [
       T: [{ x: 8, y: 0, z: 8 }, { x: 8, y: 0, z: 4 }, { x: 8, y: 0, z: 0 }],
     },
     colliders: [box(-1, -1, 1, 1), box(-6, 5, -4, 7, 2), box(4, -7, 6, -5, 2)],
+    theme: { sky: 0x87ceeb, ground: 0x55694f, fog: 0x87ceeb, structure: 0xb0a890 },
   },
   {
     id: "dust-lite",
@@ -45,6 +56,7 @@ export const ALL_MAPS: MapManifest[] = [
       T: [{ x: 12, y: 0, z: 12 }, { x: 12, y: 0, z: 8 }, { x: 10, y: 0, z: 12 }],
     },
     colliders: [box(-3, -3, 3, 3), box(5, -8, 7, 8, 2), box(-8, 4, -5, 6, 2)],
+    theme: { sky: 0xe6d3a3, ground: 0xc2a878, fog: 0xddc89a, structure: 0xa07f55 },
   },
   {
     id: "warehouse",
@@ -56,6 +68,7 @@ export const ALL_MAPS: MapManifest[] = [
       T: [{ x: 11, y: 0, z: 7 }, { x: 11, y: 0, z: 0 }, { x: 11, y: 0, z: -7 }],
     },
     colliders: [box(-4, -2, -2, 2, 2), box(2, -2, 4, 2, 2), box(-1, 4, 1, 6)],
+    theme: { sky: 0x23262b, ground: 0x3b3f45, fog: 0x23262b, structure: 0x7a7f87 },
   },
   {
     id: "office",
@@ -67,6 +80,7 @@ export const ALL_MAPS: MapManifest[] = [
       T: [{ x: 7, y: 0, z: 11 }, { x: 3, y: 0, z: 11 }, { x: 0, y: 0, z: 11 }],
     },
     colliders: [box(-8, -2, -3, 0), box(3, 0, 8, 2)],
+    theme: { sky: 0x9fb3c8, ground: 0x4a5a6a, fog: 0xaebccd, structure: 0x8a93a0 },
   },
   {
     id: "bridge",
@@ -78,6 +92,7 @@ export const ALL_MAPS: MapManifest[] = [
       T: [{ x: -3, y: 0, z: 16 }, { x: 0, y: 0, z: 16 }, { x: 3, y: 0, z: 16 }],
     },
     colliders: [box(-1, -4, 1, -2, 2), box(-1, 2, 1, 4, 2)],
+    theme: { sky: 0xb8c6d0, ground: 0x6b6e72, fog: 0xb8c6d0, structure: 0x9aa0a6 },
   },
 ];
 

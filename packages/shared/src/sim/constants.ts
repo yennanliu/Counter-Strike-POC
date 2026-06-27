@@ -52,7 +52,7 @@ export type WeaponId = keyof typeof WEAPONS;
 export const PLAYER_MAX_HP = 100;
 
 // ── Round timing (in seconds; converted to ticks where the FSM needs it) ──────
-export const FREEZE_TIME_SEC = 5;
+export const FREEZE_TIME_SEC = 3;
 export const ROUND_TIME_SEC = 90;
 /** Pause between a round ending and the next freeze phase. */
 export const ROUND_END_TIME_SEC = 3;

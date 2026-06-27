@@ -12,6 +12,7 @@ const hud = {
   root: document.getElementById("hud")!,
   crosshair: document.getElementById("crosshair")!,
   status: document.getElementById("status")!,
+  banner: document.getElementById("banner")!,
   hp: document.getElementById("hp")!,
   scoreboard: document.getElementById("scoreboard")!,
 };

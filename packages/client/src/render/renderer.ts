@@ -1,19 +1,53 @@
 /**
- * Thin WebGL renderer + first-person camera. Kept apart from SceneManager so the
- * scene graph stays unit-testable without a GL context.
+ * Thin WebGL renderer + first-person camera, plus a simple gun viewmodel and
+ * shot feedback (muzzle flash, recoil, tracer). Kept apart from SceneManager so
+ * the scene graph stays unit-testable without a GL context.
  */
 import * as THREE from "three";
 import { forwardFromYawPitch, type Vec3 } from "@cs/shared";
+
+const GUN_BASE = new THREE.Vector3(0.28, -0.26, -0.95);
 
 export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly camera: THREE.PerspectiveCamera;
 
+  private readonly gun: THREE.Group;
+  private readonly muzzle: THREE.Mesh;
+  private recoil = 0;
+  private sceneRef: THREE.Scene | null = null;
+  private readonly tracers: Array<{ mesh: THREE.Line; until: number }> = [];
+
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+
+    // Gun viewmodel: a body + barrel, parented to the camera so it stays in view.
+    this.gun = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x222428, roughness: 0.6 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.42), mat);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.5), mat);
+    barrel.position.set(0, 0.03, -0.35);
+    this.gun.add(body, barrel);
+    this.muzzle = new THREE.Mesh(
+      new THREE.SphereGeometry(0.07, 8, 8),
+      new THREE.MeshBasicMaterial({ color: 0xfff2a0 }),
+    );
+    this.muzzle.position.set(0, 0.03, -0.62);
+    this.muzzle.visible = false;
+    this.gun.add(this.muzzle);
+    this.gun.position.copy(GUN_BASE);
+    this.gun.scale.setScalar(0.7);
+    this.camera.add(this.gun);
+
     this.resize();
     window.addEventListener("resize", () => this.resize());
+  }
+
+  /** Add the camera (with the gun) to the scene so the viewmodel renders. */
+  attachTo(scene: THREE.Scene): void {
+    this.sceneRef = scene;
+    scene.add(this.camera);
   }
 
   resize(): void {
@@ -32,7 +66,37 @@ export class Renderer {
     this.camera.lookAt(eye.x + f.x, eye.y + f.y, eye.z + f.z);
   }
 
+  /** Fire feedback: muzzle flash, kick the gun back, spawn a tracer down the aim. */
+  shoot(): void {
+    this.recoil = 0.12;
+    this.muzzle.visible = true;
+    setTimeout(() => (this.muzzle.visible = false), 45);
+
+    if (!this.sceneRef) return;
+    const origin = this.camera.position.clone();
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    const end = origin.clone().add(dir.multiplyScalar(60));
+    const geo = new THREE.BufferGeometry().setFromPoints([origin, end]);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xfff2a0 }));
+    this.sceneRef.add(line);
+    this.tracers.push({ mesh: line, until: performance.now() + 60 });
+  }
+
   render(scene: THREE.Scene): void {
+    // recoil decay + tracer cleanup
+    this.recoil *= 0.8;
+    this.gun.position.z = GUN_BASE.z + this.recoil;
+    const t = performance.now();
+    for (let i = this.tracers.length - 1; i >= 0; i--) {
+      if (t >= this.tracers[i]!.until) {
+        const { mesh } = this.tracers[i]!;
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+        (mesh.material as THREE.Material).dispose();
+        this.tracers.splice(i, 1);
+      }
+    }
     this.renderer.render(scene, this.camera);
   }
 }

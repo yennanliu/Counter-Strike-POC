@@ -64,10 +64,12 @@ pnpm --filter @cs/client dev      # 2) browser client (Vite) → http://localhos
 ```
 
 Open http://localhost:5173, pick a field, click **Join match**, then click the
-canvas to lock the mouse. **WASD** move, **mouse** aim, **click** shoot. Open a
-second tab/browser to play against yourself. You spawn facing the map; fields
-render their geometry (cover boxes), team spawn pads, and a ground grid, with
-players as team-colored capsules.
+canvas to lock the mouse. **WASD** move, **mouse** aim, **click** shoot (you have a
+gun viewmodel + crosshair; shots show a muzzle flash/tracer and a hitmarker on
+kills). Each round opens with a short **GET READY** freeze where firing is
+disabled — shoot once it goes **live**. Open a second tab/browser to play against
+yourself. The 5 fields each have distinct geometry and visual themes (desert,
+industrial, office, etc.).
 
 ### E2E
 

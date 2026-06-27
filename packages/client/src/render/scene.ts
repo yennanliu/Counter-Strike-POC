@@ -26,28 +26,36 @@ export class SceneManager {
   private readonly meshes = new Map<string, THREE.Mesh>();
 
   constructor(map?: MapManifest) {
-    this.scene.background = new THREE.Color(0x87ceeb);
-    this.scene.fog = new THREE.Fog(0x87ceeb, 40, 120);
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x445544, 1.1));
+    const theme = map?.theme ?? {
+      sky: 0x87ceeb,
+      ground: 0x55694f,
+      fog: 0x87ceeb,
+      structure: 0xb0a890,
+    };
+
+    this.scene.background = new THREE.Color(theme.sky);
+    this.scene.fog = new THREE.Fog(theme.fog, 40, 140);
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x404040, 1.1));
     const sun = new THREE.DirectionalLight(0xffffff, 0.9);
     sun.position.set(8, 18, 6);
     this.scene.add(sun);
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(400, 400),
-      new THREE.MeshStandardMaterial({ color: 0x55694f, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: theme.ground, roughness: 1 }),
     );
     ground.rotation.x = -Math.PI / 2;
     this.scene.add(ground);
 
-    // Grid for spatial reference (lighter so the floor reads as a play area).
-    const grid = new THREE.GridHelper(80, 40, 0xcfe0c0, 0x7e9272);
+    // Grid for spatial reference, tinted to the theme's structure color.
+    const grid = new THREE.GridHelper(80, 40, theme.structure, theme.structure);
+    (grid.material as THREE.Material).opacity = 0.25;
+    (grid.material as THREE.Material).transparent = true;
     grid.position.y = 0.02;
     this.scene.add(grid);
 
     if (map) {
-      for (const c of map.colliders) this.scene.add(boxFromAABB(c.min, c.max, 0xb0a890));
-      // flat spawn pads, colored by team, so you can orient
+      for (const c of map.colliders) this.scene.add(boxFromAABB(c.min, c.max, theme.structure));
       for (const [team, pts] of [["CT", map.spawns.CT], ["T", map.spawns.T]] as const) {
         for (const s of pts) this.scene.add(this.spawnPad(s, TEAM_COLOR[team]));
       }

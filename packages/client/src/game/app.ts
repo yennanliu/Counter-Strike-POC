@@ -23,8 +23,10 @@ import type { Team } from "../net/types.js";
 
 interface Hud {
   status: HTMLElement;
+  banner: HTMLElement;
   hp: HTMLElement;
   scoreboard: HTMLElement;
+  crosshair: HTMLElement;
 }
 
 export type Logger = (msg: string) => void;
@@ -62,6 +64,7 @@ export async function startGame(
   const manifest = getMapManifest(room.state?.mapId ?? mapId) ?? getMapManifest(mapId);
   const scene = new SceneManager(manifest);
   const renderer = new Renderer(canvas);
+  renderer.attachTo(scene.scene); // so the gun viewmodel renders
   const controls = new Controls(canvas);
   log(`renderer + input ready (map geometry: ${manifest ? manifest.colliders.length + " walls" : "none"})`);
 
@@ -86,6 +89,7 @@ export async function startGame(
   const remotes = new Map<string, InterpolationBuffer>();
   let seq = 0;
   let stateCount = 0;
+  let lastKills = 0;
 
   // Reconcile local + buffer remotes whenever the server patches state.
   room.onStateChange(() => {
@@ -122,19 +126,29 @@ export async function startGame(
       }
     }
     updateHud(hud, room, localId);
+
+    // Hitmarker: flash the crosshair red when we get a kill.
+    const me = room.state.players.get(localId) as PlayerSchema | undefined;
+    if (me && me.kills > lastKills) {
+      lastKills = me.kills;
+      hud.crosshair.classList.add("hit");
+      setTimeout(() => hud.crosshair.classList.remove("hit"), 150);
+    }
   });
 
   // Fixed-rate input: sample → send → predict locally (once we know our spawn).
   setInterval(() => {
+    const fired = controls.consumeFire();
     const cmd: InputCommand = {
       seq: ++seq,
       moveVec: keysToMoveVec(controls.keys),
       yaw: controls.yaw,
       pitch: controls.pitch,
-      fire: controls.consumeFire(),
+      fire: fired,
     };
     room.send("input", cmd);
     predictor?.predict(cmd);
+    if (fired) renderer.shoot();
   }, 1000 / TICK_RATE);
 
   // Render at display refresh.
@@ -176,6 +190,13 @@ function updateHud(hud: Hud, room: Room, localId: string): void {
   const me = room.state.players.get(localId) as PlayerSchema | undefined;
   hud.status.textContent = `${s.mapId} · ${s.phase} · round ${s.roundNumber} — CT ${s.scoreCT} : ${s.scoreT} T`;
   hud.hp.textContent = me ? (me.alive ? `♥ ${me.hp}` : "DEAD") : "";
+
+  const banner: Record<string, string> = {
+    freeze: "GET READY",
+    ended: "ROUND OVER",
+    matchOver: "MATCH OVER",
+  };
+  hud.banner.textContent = me && !me.alive && s.phase === "live" ? "ELIMINATED" : (banner[s.phase] ?? "");
 
   const rows: Array<{ id: string; team: Team; kills: number; deaths: number; assists: number }> = [];
   room.state.players.forEach((p: PlayerSchema, id: string) =>
