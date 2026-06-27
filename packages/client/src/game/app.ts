@@ -57,11 +57,10 @@ export async function startGame(
     },
   };
 
-  // Wait until our own player exists in state.
-  await waitFor(() => room.state?.players?.get(localId) !== undefined);
-  const me0 = room.state.players.get(localId);
-  const predictor = new Predictor({ x: me0.x, y: me0.y, z: me0.z }, noColliders);
-
+  // NOTE: we're connected the moment joinOrCreate resolved — do NOT block on the
+  // local player appearing in state (that stalls the "Connecting…" overlay). The
+  // predictor is created lazily on the first state patch that includes us.
+  let predictor: Predictor | null = null;
   const remotes = new Map<string, InterpolationBuffer>();
   let seq = 0;
 
@@ -71,6 +70,7 @@ export async function startGame(
     room.state.players.forEach((p: PlayerSchema, id: string) => {
       present.add(id);
       if (id === localId) {
+        if (!predictor) predictor = new Predictor({ x: p.x, y: p.y, z: p.z }, noColliders);
         predictor.reconcile({
           pos: { x: p.x, y: p.y, z: p.z },
           lastProcessedSeq: p.lastProcessedSeq,
@@ -83,7 +83,6 @@ export async function startGame(
       buf.add({ t: now(), pos: { x: p.x, y: p.y, z: p.z } });
       scene.getMesh(id)!.rotation.y = p.yaw;
     });
-    // drop players who left
     for (const id of [...remotes.keys()]) {
       if (!present.has(id)) {
         remotes.delete(id);
@@ -93,7 +92,7 @@ export async function startGame(
     updateHud(hud, room, localId);
   });
 
-  // Fixed-rate input: sample → send → predict locally.
+  // Fixed-rate input: sample → send → predict locally (once we know our spawn).
   setInterval(() => {
     const cmd: InputCommand = {
       seq: ++seq,
@@ -103,7 +102,7 @@ export async function startGame(
       fire: controls.consumeFire(),
     };
     room.send("input", cmd);
-    predictor.predict(cmd);
+    predictor?.predict(cmd);
   }, 1000 / TICK_RATE);
 
   // Render at display refresh.
@@ -113,7 +112,7 @@ export async function startGame(
       const p = buf.sample(t);
       if (p) scene.getMesh(id)?.position.set(p.x, p.y + PLAYER_EYE_HEIGHT / 2, p.z);
     }
-    const eye = predictor.position;
+    const eye = predictor?.position ?? { x: 0, y: 0, z: 0 };
     renderer.setView(
       { x: eye.x, y: eye.y + PLAYER_EYE_HEIGHT, z: eye.z },
       controls.yaw,
@@ -165,16 +164,4 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
     p,
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
   ]);
-}
-
-function waitFor(pred: () => boolean, timeoutMs = 5000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const start = performance.now();
-    const tick = () => {
-      if (pred()) return resolve();
-      if (performance.now() - start > timeoutMs) return reject(new Error("timeout"));
-      setTimeout(tick, 20);
-    };
-    tick();
-  });
 }
