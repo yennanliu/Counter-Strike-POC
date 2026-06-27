@@ -7,6 +7,7 @@ const canvas = document.getElementById("game") as HTMLCanvasElement;
 const overlay = document.getElementById("overlay")!;
 const playBtn = document.getElementById("play") as HTMLButtonElement;
 const mapSelect = document.getElementById("map") as HTMLSelectElement;
+const errorBox = document.getElementById("error")!;
 const hud = {
   root: document.getElementById("hud")!,
   crosshair: document.getElementById("crosshair")!,
@@ -18,6 +19,7 @@ const hud = {
 playBtn.addEventListener("click", async () => {
   playBtn.disabled = true;
   playBtn.textContent = "Connecting…";
+  errorBox.textContent = "";
   try {
     await startGame(canvas, hud, __SERVER_URL__, mapSelect.value);
     overlay.setAttribute("hidden", "");
@@ -26,6 +28,10 @@ playBtn.addEventListener("click", async () => {
   } catch (err) {
     playBtn.disabled = false;
     playBtn.textContent = "Join match";
-    alert(`Could not connect to ${__SERVER_URL__}\n${(err as Error).message}\n\nStart the server: pnpm --filter @cs/server dev`);
+    const detail = (err as Error).message || "could not reach the server";
+    errorBox.innerHTML =
+      `⚠️ Couldn't join at <code>${__SERVER_URL__}</code>.<br>${detail}<br>` +
+      `Make sure the server is running: <code>pnpm --filter @cs/server dev</code>`;
+    console.error("[cs] join failed:", err);
   }
 });

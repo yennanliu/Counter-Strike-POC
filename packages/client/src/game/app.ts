@@ -31,7 +31,12 @@ export async function startGame(
   mapId: string,
 ): Promise<void> {
   const client = new Client(endpoint);
-  const room: Room = await client.joinOrCreate("game", { mapId });
+  const room: Room = await withTimeout(
+    client.joinOrCreate("game", { mapId }),
+    8000,
+    `No response from the game server at ${endpoint}. Is it running? ` +
+      `Start it with:  pnpm --filter @cs/server dev`,
+  );
   const localId = room.sessionId;
 
   const scene = new SceneManager();
@@ -153,6 +158,13 @@ function updateHud(hud: Hud, room: Room, localId: string): void {
   hud.scoreboard.innerHTML = scoreboardFrom(rows)
     .map((r) => `${r.team} ${r.id} — ${r.kills}/${r.deaths}/${r.assists}`)
     .join("<br>");
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
 }
 
 function waitFor(pred: () => boolean, timeoutMs = 5000): Promise<void> {
