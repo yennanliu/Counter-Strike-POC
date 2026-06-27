@@ -144,21 +144,127 @@ history ring buffer for the replay system — see §6).
                   ▼                              ▼
         ┌──────────────────┐          ┌────────────────────┐
         │ Object storage   │          │  Database          │
-        │ (replays: S3/    │          │  (Postgres/SQLite) │
-        │  GCS, .json.gz)  │          │  users, matches,    │
-        │                  │          │  scoreboard        │
+        │ (replays:        │          │  local: SQLite     │
+        │  .json.gz)       │          │  prod:  Postgres   │
+        │  local: ./data   │          │  users, matches,   │
+        │  prod:  S3       │          │  scoreboard        │
         └──────────────────┘          └────────────────────┘
 ```
 
-### 3.1 Deployment topology
+### 3.1 Deployment topology (local dev → AWS)
 
-- **Static client** → CDN (Vercel/Netlify/Cloudflare Pages). Just HTML/JS/WASM/assets.
-- **Game server** → a single Node process (Colyseus) on one small VM/container is
-  enough for the 5-player target and even for dozens of parallel 5-player rooms.
-  Scale horizontally later with Colyseus' built-in presence/driver (Redis) if many
-  rooms are needed.
-- **DB** → start with **SQLite** (single file) for the POC; migrate to **Postgres**
-  when multi-instance. **Object storage** (S3/GCS/R2) for replay blobs.
+We use a **storage-abstraction layer** so the same code runs against local
+file/SQLite in dev and AWS managed services in prod — only env config changes.
+
+| Concern | Local dev | AWS production |
+|---------|-----------|----------------|
+| Static client | Vite dev server | **S3 + CloudFront** (CDN) |
+| Game server | `node`/`ts-node` on localhost | **ECS Fargate** container behind an **ALB** (sticky sessions for WS); or a single EC2 for the POC |
+| Database | **SQLite** (`./data/dev.db`) | **RDS for PostgreSQL** (or Aurora Serverless v2) |
+| Replay blobs | local folder `./data/replays/` | **S3** bucket (`.json.gz` objects) |
+| Room presence/scale-out | in-process (single node) | **ElastiCache (Redis)** as Colyseus presence/driver |
+| DNS / TLS | `localhost` | **Route 53** + **ACM** certs on CloudFront & ALB |
+| Secrets/config | `.env` file | **SSM Parameter Store / Secrets Manager** |
+| Logs/metrics | console | **CloudWatch** |
+
+- **Why ALB + sticky sessions:** Colyseus rooms are stateful and live in one
+  process; WebSocket connections must stick to the node holding the room. ALB
+  supports WebSocket upgrade + sticky sessions; Redis lets multiple Fargate tasks
+  share matchmaking/presence so the lobby can place players into rooms on any node.
+- **Scaling story:** 1 Fargate task easily handles the 5-player cap and many
+  parallel rooms. Add tasks behind the ALB + Redis only when room count grows.
+- **POC shortcut:** for the earliest milestones a single **EC2** instance running
+  the Node server + SQLite + local replay folder is the cheapest path; promote to
+  Fargate/RDS/S3 at M4–M5.
+
+### 3.2 AWS production architecture diagram
+
+```
+                                   Players (browsers)
+                                          │
+                          ┌───────────────┴────────────────┐
+                          │ HTTPS (assets)        WSS (game)│
+                          ▼                                 ▼
+                  ┌───────────────┐                 ┌──────────────┐
+   Route 53 ────▶ │  CloudFront   │                 │     ALB      │ ◀── ACM TLS
+   (DNS)          │  (CDN, ACM)   │                 │ (WS upgrade, │
+                  └───────┬───────┘                 │  sticky)     │
+                          │ origin                  └──────┬───────┘
+                          ▼                                │
+                  ┌───────────────┐              ┌─────────┴──────────┐
+                  │   S3 (static  │              │  ECS Fargate       │
+                  │  client app)  │              │  Colyseus tasks    │
+                  └───────────────┘              │  (1..N game nodes) │
+                                                 └───┬───────┬────┬───┘
+                                                     │       │    │
+                        ┌────────────────────────────┘       │    └─────────────┐
+                        ▼                                     ▼                  ▼
+                ┌───────────────┐                  ┌──────────────────┐  ┌──────────────┐
+                │ ElastiCache   │                  │ RDS PostgreSQL   │  │  S3 (replay  │
+                │ (Redis)       │                  │ users / matches /│  │  blobs       │
+                │ presence,     │                  │ scoreboard       │  │  .json.gz)   │
+                │ matchmaking   │                  └──────────────────┘  └──────────────┘
+                └───────────────┘
+                                       Cross-cutting: CloudWatch (logs/metrics),
+                                       Secrets Manager / SSM (config), IAM, VPC
+```
+
+> **Local dev mirror:** CloudFront/S3 → Vite dev server · ALB/Fargate → `node` on
+> `localhost` · RDS → SQLite file · S3 replays → `./data/replays/` · Redis →
+> in-process (skipped). The storage layer interface is identical; only the adapter
+> changes by `NODE_ENV`.
+
+### 3.3 User flow
+
+```
+  ┌─────────┐   open URL    ┌──────────────┐   pick handle    ┌──────────────┐
+  │ Visitor │ ─────────────▶│ Landing /    │ ────────────────▶│ Lobby        │
+  └─────────┘  (CloudFront) │ guest login  │  (guest or auth) │              │
+                            └──────────────┘                  └──────┬───────┘
+                                                                     │
+              ┌──────────────────────────────────────────────────────┤
+              │ choose one of:                                         │
+              ▼                                                        ▼
+   ┌─────────────────────┐                              ┌──────────────────────┐
+   │ Browse open rooms    │                              │ Create room:         │
+   │ (field + #players)   │                              │ pick 1 of 5 fields,  │
+   │ → Join               │                              │ mode (2v2 / FFA)     │
+   └──────────┬──────────┘                              └──────────┬───────────┘
+              └───────────────────────┬────────────────────────────┘
+                                      ▼
+                          ┌────────────────────────┐
+                          │ GameRoom (Colyseus)     │
+                          │ team assign → freeze/buy │
+                          └───────────┬─────────────┘
+                                      ▼
+        ┌───────────────────────────────────────────────────────┐
+        │ ROUND LOOP (server-authoritative, 20–30 Hz)            │
+        │  move / aim / shoot → server validates → state syncs   │
+        │  client: predict + reconcile + interpolate             │
+        │  round ends (elimination or timer) → score → next      │
+        └───────────────────────────┬───────────────────────────┘
+                                      ▼
+                          ┌────────────────────────┐
+                          │ Match end               │
+                          │ • summary → DB          │
+                          │ • replay log → storage  │
+                          │ • show scoreboard       │
+                          └───────────┬─────────────┘
+                                      ▼
+              ┌───────────────────────┴───────────────────────┐
+              ▼                                                ▼
+   ┌────────────────────┐                         ┌────────────────────────┐
+   │ Rematch / back to   │                         │ Match history → open    │
+   │ lobby               │                         │ replay viewer (scrub)   │
+   └────────────────────┘                         └────────────────────────┘
+```
+
+**Narrative:** A visitor loads the CDN-served client, picks a guest handle, and
+lands in the lobby. They either join an open room (shown with its field name and
+player count) or create one — choosing a field and mode. The server assigns teams,
+runs a freeze/buy phase, then the authoritative round loop. On match end the server
+persists a summary row and a compressed replay log, shows the scoreboard, and lets
+players rematch, return to the lobby, or watch the replay.
 
 ---
 
@@ -267,13 +373,94 @@ sign-in later; nothing about the architecture requires accounts in v1.
 | Transport (future) | **geckos.io** (WebRTC/UDP) | Drop-in lower-latency upgrade path |
 | Server runtime | **Node.js + TypeScript** | Same language client+server → share sim & types |
 | Client app/UI | **TypeScript** (+ optional React for lobby) | Simple, typed, matches server |
-| Persistence | **SQLite → Postgres**; **S3/GCS/R2** for replays | Start trivial, scale when needed |
-| Hosting | CDN (client) + 1 container (server) | Cheap; scale by adding rooms |
+| Persistence | **SQLite** (local) → **RDS Postgres** (AWS); replays to local folder → **S3** | Start trivial, scale when needed; same storage interface |
+| Hosting | **AWS**: S3+CloudFront (client), ECS Fargate behind ALB + ElastiCache Redis (server), RDS + S3 (data) | Managed, WS-capable, scale by adding rooms |
+| Local dev | Vite + `node` + SQLite + local folders, all via `docker compose` | One-command spin-up, mirrors prod interfaces |
 | Build | **Vite** | Fast, WASM-friendly bundling |
 
 **Shared-code win:** Three.js + Rapier + Colyseus + TS lets the *movement &
 collision simulation be one module* imported by both the predicting client and the
 authoritative server — the single biggest simplicity lever in this design.
+
+### 9.1 Project skeleton (monorepo)
+
+A **pnpm/npm workspaces** monorepo with three packages: `client`, `server`, and a
+`shared` package that holds the types, network protocol, and the deterministic
+simulation imported by both sides.
+
+```
+counter-strike/
+├─ package.json                  # workspaces: packages/*
+├─ pnpm-workspace.yaml
+├─ tsconfig.base.json
+├─ docker-compose.yml            # local: server + (optional) redis/postgres
+├─ .env.example                  # NODE_ENV, DB_URL, REPLAY_BUCKET, REDIS_URL...
+│
+├─ packages/
+│  ├─ shared/                    # imported by BOTH client and server
+│  │  ├─ src/
+│  │  │  ├─ protocol.ts          # input & message schemas (Colyseus Schema)
+│  │  │  ├─ state.ts             # GameState / PlayerState / RoundState schemas
+│  │  │  ├─ sim/
+│  │  │  │  ├─ movement.ts       # capsule move + collision (Rapier WASM)
+│  │  │  │  ├─ hitscan.ts        # raycast hit resolution
+│  │  │  │  └─ constants.ts      # tick rate, speeds, damage, timers
+│  │  │  └─ maps/
+│  │  │     └─ types.ts          # MapManifest type (spawns, bounds, sites)
+│  │  └─ package.json
+│  │
+│  ├─ client/                    # Three.js browser app (Vite)
+│  │  ├─ index.html
+│  │  ├─ vite.config.ts
+│  │  ├─ src/
+│  │  │  ├─ main.ts              # bootstrap, scene, render loop
+│  │  │  ├─ render/              # Three.js scene, camera, models, HUD
+│  │  │  ├─ input/               # pointer-lock + WASD sampling
+│  │  │  ├─ net/
+│  │  │  │  ├─ connection.ts     # Colyseus client (WS now, WebRTC later)
+│  │  │  │  ├─ prediction.ts     # local predict + reconcile
+│  │  │  │  └─ interpolation.ts  # remote entity buffer (~100ms)
+│  │  │  ├─ ui/                  # lobby, room browser, scoreboard (React opt.)
+│  │  │  └─ replay/              # replay viewer (reuses render/, feeds log)
+│  │  └─ package.json
+│  │
+│  └─ server/                    # Colyseus authoritative server (Node + TS)
+│     ├─ src/
+│     │  ├─ index.ts             # Colyseus server bootstrap, transport, ALB health
+│     │  ├─ rooms/
+│     │  │  ├─ LobbyRoom.ts      # matchmaking, room list, create/join
+│     │  │  └─ GameRoom.ts       # tick loop, validate inputs, round logic
+│     │  ├─ sim/                 # thin wrappers over shared/sim (authoritative)
+│     │  ├─ maps/
+│     │  │  ├─ MapRegistry.ts    # loads the 5 manifests
+│     │  │  └─ definitions/      # dust-lite.json, warehouse.json, ...
+│     │  ├─ persistence/
+│     │  │  ├─ db.ts             # interface: SQLite (dev) | Postgres/RDS (prod)
+│     │  │  ├─ replayStore.ts    # interface: local fs (dev) | S3 (prod)
+│     │  │  └─ migrations/
+│     │  └─ recording/
+│     │     └─ recorder.ts       # ring buffer → keyframes + input log
+│     └─ package.json
+│
+├─ assets/                       # low-poly glTF maps, weapon models, textures
+│  └─ maps/ { dust-lite.glb, warehouse.glb, office.glb, arena.glb, bridge.glb }
+│
+└─ infra/                        # AWS deployment
+   ├─ Dockerfile.server          # builds the Colyseus container (→ ECR/Fargate)
+   ├─ cdk/  (or terraform/)      # S3+CloudFront, ALB+Fargate, RDS, ElastiCache,
+   │                             # Route53, ACM, Secrets Manager, CloudWatch
+   └─ README.md                  # deploy runbook
+```
+
+**Conventions that keep it light:**
+
+- `shared/sim` is the *only* place movement/collision/hitscan math lives — client
+  predicts with it, server is authoritative with it. No logic duplication.
+- `persistence/db.ts` and `replayStore.ts` are **interfaces** with two adapters
+  each (local vs AWS), selected by env — code never branches on environment inline.
+- Maps are JSON manifests + `.glb` assets under `assets/` — adding a 6th field is a
+  data change, not a code change.
+- One command for local dev: `docker compose up` (server) + `pnpm --filter client dev`.
 
 ---
 
