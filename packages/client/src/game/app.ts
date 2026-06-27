@@ -5,7 +5,13 @@
  * `vite build` is the smoke check, Playwright covers the live path.
  */
 import { Client, type Room } from "colyseus.js";
-import { TICK_RATE, PLAYER_EYE_HEIGHT, type InputCommand, type AABB } from "@cs/shared";
+import {
+  TICK_RATE,
+  PLAYER_EYE_HEIGHT,
+  getMapManifest,
+  type InputCommand,
+  type AABB,
+} from "@cs/shared";
 import { SceneManager } from "../render/scene.js";
 import { Renderer } from "../render/renderer.js";
 import { Controls } from "../input/controls.js";
@@ -53,10 +59,11 @@ export async function startGame(
   room.onError((code: number, message?: string) => log(`room error ${code}: ${message ?? ""}`));
   room.onLeave((code: number) => log(`left room (code ${code})`));
 
-  const scene = new SceneManager();
+  const manifest = getMapManifest(room.state?.mapId ?? mapId) ?? getMapManifest(mapId);
+  const scene = new SceneManager(manifest);
   const renderer = new Renderer(canvas);
   const controls = new Controls(canvas);
-  log("renderer + input ready");
+  log(`renderer + input ready (map geometry: ${manifest ? manifest.colliders.length + " walls" : "none"})`);
 
   // Test hook: lets the E2E read who's connected and where they are.
   (globalThis as unknown as { __cs?: unknown }).__cs = {
@@ -92,6 +99,8 @@ export async function startGame(
       if (id === localId) {
         if (!predictor) {
           predictor = new Predictor({ x: p.x, y: p.y, z: p.z }, noColliders);
+          // Face the map center on spawn so you look toward the action, not away.
+          controls.yaw = Math.atan2(-p.x, -p.z);
           log(`local player spawned at (${p.x.toFixed(1)}, ${p.z.toFixed(1)}) team=${p.team}`);
         }
         predictor.reconcile({

@@ -1,15 +1,11 @@
 /**
  * Loads and validates the field manifests (requirement #6 — "5 different
- * fields"). Maps are DATA: every `.json` in ./definitions is read at startup, so
- * adding a 6th field is a file drop, not a code change.
+ * fields"). Maps are shared DATA (`@cs/shared` ALL_MAPS) so the server and the
+ * browser client render the exact same geometry. Adding a field = add an entry to
+ * shared/maps.ts.
  */
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import type { MapManifest, Vec3 } from "@cs/shared";
+import { ALL_MAPS, type MapManifest, type Vec3 } from "@cs/shared";
 import type { Arena } from "../sim/GameSimulation.js";
-
-const defsDir = join(dirname(fileURLToPath(import.meta.url)), "definitions");
 
 function isVec3(v: unknown): v is Vec3 {
   return (
@@ -67,8 +63,7 @@ export class MapRegistry {
   private readonly maps = new Map<string, MapManifest>();
 
   constructor() {
-    for (const file of readdirSync(defsDir).filter((f) => f.endsWith(".json"))) {
-      const raw: unknown = JSON.parse(readFileSync(join(defsDir, file), "utf8"));
+    for (const raw of ALL_MAPS) {
       const manifest = validateManifest(raw);
       this.maps.set(manifest.id, manifest);
     }
