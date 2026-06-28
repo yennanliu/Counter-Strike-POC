@@ -14,9 +14,11 @@ COPY packages/shared/package.json packages/shared/package.json
 COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
 
-# Install only the server subtree (+ its workspace deps). Builds esbuild (for tsx);
-# msgpackr-extract stays ignored (pure-JS fallback) per pnpm-workspace.yaml.
-RUN pnpm install --frozen-lockfile --filter @cs/server...
+# Full workspace install (NOT --filter): pnpm only honors the build-approval
+# settings (onlyBuiltDependencies / ignoredBuiltDependencies in pnpm-workspace.yaml)
+# on a full install, so this is what builds esbuild (needed by tsx) while ignoring
+# msgpackr-extract — exactly like CI's test job.
+RUN pnpm install --frozen-lockfile
 
 # Server + shared source (client source is not needed by the server).
 COPY packages/shared packages/shared
