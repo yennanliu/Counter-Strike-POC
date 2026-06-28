@@ -1,14 +1,15 @@
 packages:
   - "packages/*"
 
-# esbuild needs its native binary (vitest); build it.
+# Build-script approvals. Standard pnpm reads onlyBuiltDependencies/
+# ignoredBuiltDependencies; this environment's pnpm reads allowBuilds. We set both
+# so esbuild (needed by vitest/tsx) builds and msgpackr-extract is skipped (its
+# pure-JS fallback is fine). CI installs with --ignore-scripts + an explicit
+# `pnpm rebuild esbuild`, so it doesn't depend on either being honored.
 onlyBuiltDependencies:
   - esbuild
-
-# msgpackr-extract is an optional native accel for msgpackr (Colyseus); the pure-JS
-# fallback is fine, so don't build it.
 ignoredBuiltDependencies:
   - msgpackr-extract
-
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
+  msgpackr-extract: false

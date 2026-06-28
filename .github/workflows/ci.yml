@@ -21,7 +21,10 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      # Install without build scripts (pnpm's build-approval gate fails a fresh
+      # install on esbuild/msgpackr-extract), then build just esbuild for vitest.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm rebuild esbuild
       - run: pnpm typecheck
       - run: pnpm test
 
