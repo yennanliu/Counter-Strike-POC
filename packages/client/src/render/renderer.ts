@@ -15,8 +15,6 @@ export class Renderer {
   private readonly gun: THREE.Group;
   private readonly muzzle: THREE.Mesh;
   private recoil = 0;
-  private sceneRef: THREE.Scene | null = null;
-  private readonly tracers: Array<{ mesh: THREE.Line; until: number }> = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -46,7 +44,6 @@ export class Renderer {
 
   /** Add the camera (with the gun) to the scene so the viewmodel renders. */
   attachTo(scene: THREE.Scene): void {
-    this.sceneRef = scene;
     scene.add(this.camera);
   }
 
@@ -66,37 +63,17 @@ export class Renderer {
     this.camera.lookAt(eye.x + f.x, eye.y + f.y, eye.z + f.z);
   }
 
-  /** Fire feedback: muzzle flash, kick the gun back, spawn a tracer down the aim. */
+  /** Local fire feedback: muzzle flash + recoil kick. (The authoritative tracer
+   * + impact come from the server "shot" broadcast, rendered by SceneManager.) */
   shoot(): void {
     this.recoil = 0.12;
     this.muzzle.visible = true;
     setTimeout(() => (this.muzzle.visible = false), 45);
-
-    if (!this.sceneRef) return;
-    const origin = this.camera.position.clone();
-    const dir = new THREE.Vector3();
-    this.camera.getWorldDirection(dir);
-    const end = origin.clone().add(dir.multiplyScalar(60));
-    const geo = new THREE.BufferGeometry().setFromPoints([origin, end]);
-    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xfff2a0 }));
-    this.sceneRef.add(line);
-    this.tracers.push({ mesh: line, until: performance.now() + 60 });
   }
 
   render(scene: THREE.Scene): void {
-    // recoil decay + tracer cleanup
     this.recoil *= 0.8;
     this.gun.position.z = GUN_BASE.z + this.recoil;
-    const t = performance.now();
-    for (let i = this.tracers.length - 1; i >= 0; i--) {
-      if (t >= this.tracers[i]!.until) {
-        const { mesh } = this.tracers[i]!;
-        scene.remove(mesh);
-        mesh.geometry.dispose();
-        (mesh.material as THREE.Material).dispose();
-        this.tracers.splice(i, 1);
-      }
-    }
     this.renderer.render(scene, this.camera);
   }
 }

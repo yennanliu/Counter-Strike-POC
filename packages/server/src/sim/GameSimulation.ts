@@ -46,17 +46,24 @@ export interface Arena {
 }
 
 export interface ShotResult {
+  /** True if a shot was actually discharged (false when disabled/dead/unknown). */
+  fired: boolean;
   hit: boolean;
   targetId?: string;
   damage?: number;
   isHead?: boolean;
   killed?: boolean;
+  /** Trajectory endpoints (eye → impact or max range) for client rendering. */
+  origin: Vec3;
+  end: Vec3;
 }
 
 export class GameSimulation {
   readonly players = new Map<string, PlayerSim>();
   /** Gated by the round FSM: shots are ignored unless the round is live. */
   firingEnabled = true;
+  /** Result of the most recent fireShot() — GameRoom broadcasts it. */
+  lastShot: ShotResult | null = null;
 
   constructor(private readonly arena: Arena) {}
 
@@ -135,8 +142,11 @@ export class GameSimulation {
 
   /** Resolve a hitscan shot from `shooterId` using their current pose. */
   fireShot(shooterId: string, weaponId: WeaponId = "rifle"): ShotResult {
+    const ZERO: Vec3 = { x: 0, y: 0, z: 0 };
     const shooter = this.players.get(shooterId);
-    if (!this.firingEnabled || !shooter || !shooter.alive) return { hit: false };
+    if (!this.firingEnabled || !shooter || !shooter.alive) {
+      return (this.lastShot = { fired: false, hit: false, origin: ZERO, end: ZERO });
+    }
 
     const weapon = WEAPONS[weaponId];
     const origin: Vec3 = {
@@ -154,7 +164,19 @@ export class GameSimulation {
       { origin, dir },
       { targets, walls: this.arena.colliders, maxDistance: weapon.range },
     );
-    if (!res.hit || res.targetId === undefined) return { hit: false };
+
+    const end: Vec3 =
+      res.hit && res.point
+        ? res.point
+        : {
+            x: origin.x + dir.x * weapon.range,
+            y: origin.y + dir.y * weapon.range,
+            z: origin.z + dir.z * weapon.range,
+          };
+
+    if (!res.hit || res.targetId === undefined) {
+      return (this.lastShot = { fired: true, hit: false, origin, end });
+    }
 
     const target = this.players.get(res.targetId)!;
     const damage = weapon.damage * (res.isHead ? HEADSHOT_MULTIPLIER : 1);
@@ -173,7 +195,16 @@ export class GameSimulation {
       killed = true;
     }
 
-    return { hit: true, targetId: res.targetId, damage, isHead: res.isHead, killed };
+    return (this.lastShot = {
+      fired: true,
+      hit: true,
+      targetId: res.targetId,
+      damage,
+      isHead: res.isHead,
+      killed,
+      origin,
+      end,
+    });
   }
 
   /** Reset everyone to spawn, full HP, alive — for the start of a round. K/D/A persist. */

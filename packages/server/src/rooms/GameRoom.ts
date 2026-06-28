@@ -68,8 +68,23 @@ export class GameRoom extends Room<GameState> {
     }
 
     this.onMessage("input", (client: Client, cmd: InputCommand) => {
-      this.sim.applyInput(client.sessionId, cmd);
+      const accepted = this.sim.applyInput(client.sessionId, cmd);
       this.recorder?.recordInput(this.tickCount, client.sessionId, cmd);
+
+      // Broadcast the shot so every client can render the trajectory + impact.
+      if (accepted && cmd.fire && this.sim.lastShot?.fired) {
+        const s = this.sim.lastShot;
+        this.broadcast("shot", {
+          by: client.sessionId,
+          ox: s.origin.x, oy: s.origin.y, oz: s.origin.z,
+          ex: s.end.x, ey: s.end.y, ez: s.end.z,
+          hit: s.hit,
+          target: s.targetId ?? "",
+          dmg: s.damage ?? 0,
+          head: s.isHead ?? false,
+          killed: s.killed ?? false,
+        });
+      }
     });
 
     // Authoritative fixed-step loop: advance round flow, then sync state.

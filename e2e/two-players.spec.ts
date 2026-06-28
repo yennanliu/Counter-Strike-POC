@@ -16,8 +16,7 @@ declare global {
 
 async function joinArena(page: Page): Promise<void> {
   await page.goto("/");
-  await page.selectOption("#map", "arena");
-  await page.click("#play");
+  await page.click('button[data-map="arena"]'); // game-center field card
   await page.waitForFunction(() => (window.__cs?.ids().length ?? 0) >= 1, undefined, {
     timeout: 20_000,
   });

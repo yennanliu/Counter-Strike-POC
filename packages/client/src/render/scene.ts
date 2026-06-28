@@ -1,13 +1,29 @@
 /**
- * Three.js scene management — builds the world from a map manifest and tracks one
- * mesh per player. Pure scene-graph work (no WebGLRenderer), so it's testable in
- * Node; the WebGL renderer + render loop live in app.ts.
+ * Three.js scene management — builds the world from a map manifest, tracks one
+ * mesh (+ HP bar) per player, and owns transient effects (tracers, impacts,
+ * damage popups). Scene-graph work only (no WebGLRenderer), so it's testable in
+ * Node; DOM-dependent bits (canvas HP bars / damage text) are guarded so the
+ * headless tests still run.
  */
 import * as THREE from "three";
 import { PLAYER_RADIUS, PLAYER_HEIGHT, type MapManifest, type Vec3 } from "@cs/shared";
 import type { Team } from "../net/types.js";
 
 const TEAM_COLOR: Record<Team, number> = { CT: 0x3b82f6, T: 0xef4444 };
+const HAS_DOM = typeof document !== "undefined";
+
+interface Effect {
+  obj: THREE.Object3D;
+  born: number;
+  ttl: number;
+  anim: (p: number) => void;
+  dispose: () => void;
+}
+
+interface PlayerVisual {
+  mesh: THREE.Mesh;
+  bar?: { sprite: THREE.Sprite; draw: (hp: number) => void };
+}
 
 function boxFromAABB(min: Vec3, max: Vec3, color: number): THREE.Mesh {
   const sx = max.x - min.x;
@@ -21,9 +37,56 @@ function boxFromAABB(min: Vec3, max: Vec3, color: number): THREE.Mesh {
   return mesh;
 }
 
+function makeHpBar(): PlayerVisual["bar"] {
+  if (!HAS_DOM) return undefined;
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 10;
+  const ctx = canvas.getContext("2d")!;
+  const tex = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, depthTest: false }),
+  );
+  sprite.scale.set(1.4, 0.22, 1);
+  const draw = (hp: number) => {
+    const f = Math.max(0, Math.min(1, hp / 100));
+    ctx.clearRect(0, 0, 64, 10);
+    ctx.fillStyle = "#0008";
+    ctx.fillRect(0, 0, 64, 10);
+    ctx.fillStyle = f > 0.5 ? "#39d353" : f > 0.25 ? "#e3b341" : "#f85149";
+    ctx.fillRect(1, 1, 62 * f, 8);
+    tex.needsUpdate = true;
+  };
+  draw(100);
+  return { sprite, draw };
+}
+
+function makeTextSprite(text: string, color: string): THREE.Sprite | null {
+  if (!HAS_DOM) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = "bold 44px monospace";
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 5;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.strokeText(text, 64, 32);
+  ctx.fillText(text, 64, 32);
+  const tex = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }),
+  );
+  sprite.scale.set(1.2, 0.6, 1);
+  return sprite;
+}
+
 export class SceneManager {
   readonly scene = new THREE.Scene();
-  private readonly meshes = new Map<string, THREE.Mesh>();
+  private readonly players = new Map<string, PlayerVisual>();
+  private readonly effects: Effect[] = [];
 
   constructor(map?: MapManifest) {
     const theme = map?.theme ?? {
@@ -47,7 +110,6 @@ export class SceneManager {
     ground.rotation.x = -Math.PI / 2;
     this.scene.add(ground);
 
-    // Grid for spatial reference, tinted to the theme's structure color.
     const grid = new THREE.GridHelper(80, 40, theme.structure, theme.structure);
     (grid.material as THREE.Material).opacity = 0.25;
     (grid.material as THREE.Material).transparent = true;
@@ -79,31 +141,125 @@ export class SceneManager {
       new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.35, roughness: 0.5 }),
     );
     this.scene.add(mesh);
-    this.meshes.set(id, mesh);
+    const bar = makeHpBar();
+    if (bar) this.scene.add(bar.sprite);
+    this.players.set(id, { mesh, bar });
     return mesh;
   }
 
   updatePlayer(id: string, pos: Vec3, yaw: number): void {
-    const mesh = this.meshes.get(id);
-    if (!mesh) return;
-    mesh.position.set(pos.x, pos.y + PLAYER_HEIGHT / 2, pos.z);
-    mesh.rotation.y = yaw;
+    const v = this.players.get(id);
+    if (!v) return;
+    v.mesh.position.set(pos.x, pos.y + PLAYER_HEIGHT / 2, pos.z);
+    v.mesh.rotation.y = yaw;
+    if (v.bar) v.bar.sprite.position.set(pos.x, pos.y + PLAYER_HEIGHT + 0.35, pos.z);
+  }
+
+  setHp(id: string, hp: number, alive: boolean): void {
+    const v = this.players.get(id);
+    if (!v) return;
+    v.mesh.visible = alive;
+    if (v.bar) {
+      v.bar.sprite.visible = alive;
+      v.bar.draw(hp);
+    }
   }
 
   removePlayer(id: string): void {
-    const mesh = this.meshes.get(id);
-    if (!mesh) return;
-    this.scene.remove(mesh);
-    mesh.geometry.dispose();
-    (mesh.material as THREE.Material).dispose();
-    this.meshes.delete(id);
+    const v = this.players.get(id);
+    if (!v) return;
+    this.scene.remove(v.mesh);
+    v.mesh.geometry.dispose();
+    (v.mesh.material as THREE.Material).dispose();
+    if (v.bar) {
+      this.scene.remove(v.bar.sprite);
+      v.bar.sprite.material.dispose();
+    }
+    this.players.delete(id);
   }
 
   getMesh(id: string): THREE.Mesh | undefined {
-    return this.meshes.get(id);
+    return this.players.get(id)?.mesh;
   }
 
   playerCount(): number {
-    return this.meshes.size;
+    return this.players.size;
+  }
+
+  // ── transient effects ──────────────────────────────────────────────────────
+
+  tracer(from: Vec3, to: Vec3, nowMs: number): void {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(from.x, from.y, from.z),
+      new THREE.Vector3(to.x, to.y, to.z),
+    ]);
+    const mat = new THREE.LineBasicMaterial({ color: 0xfff2a0, transparent: true });
+    const line = new THREE.Line(geo, mat);
+    this.scene.add(line);
+    this.effects.push({
+      obj: line,
+      born: nowMs,
+      ttl: 90,
+      anim: (p) => (mat.opacity = 1 - p),
+      dispose: () => {
+        geo.dispose();
+        mat.dispose();
+      },
+    });
+  }
+
+  impact(at: Vec3, killed: boolean, nowMs: number): void {
+    const mat = new THREE.MeshBasicMaterial({
+      color: killed ? 0xff3030 : 0xffd060,
+      transparent: true,
+    });
+    const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 8), mat);
+    sphere.position.set(at.x, at.y, at.z);
+    this.scene.add(sphere);
+    this.effects.push({
+      obj: sphere,
+      born: nowMs,
+      ttl: 250,
+      anim: (p) => {
+        sphere.scale.setScalar(1 + p * 3);
+        mat.opacity = 1 - p;
+      },
+      dispose: () => {
+        sphere.geometry.dispose();
+        mat.dispose();
+      },
+    });
+  }
+
+  damagePopup(at: Vec3, text: string, color: string, nowMs: number): void {
+    const sprite = makeTextSprite(text, color);
+    if (!sprite) return;
+    sprite.position.set(at.x, at.y + 0.3, at.z);
+    this.scene.add(sprite);
+    this.effects.push({
+      obj: sprite,
+      born: nowMs,
+      ttl: 700,
+      anim: (p) => {
+        sprite.position.y = at.y + 0.3 + p * 0.8;
+        sprite.material.opacity = 1 - p;
+      },
+      dispose: () => sprite.material.dispose(),
+    });
+  }
+
+  /** Advance + retire effects. Call once per rendered frame. */
+  update(nowMs: number): void {
+    for (let i = this.effects.length - 1; i >= 0; i--) {
+      const e = this.effects[i]!;
+      const p = (nowMs - e.born) / e.ttl;
+      if (p >= 1) {
+        this.scene.remove(e.obj);
+        e.dispose();
+        this.effects.splice(i, 1);
+      } else {
+        e.anim(p);
+      }
+    }
   }
 }

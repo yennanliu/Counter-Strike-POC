@@ -7,57 +7,62 @@
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { height: 100%; overflow: hidden; background: #111; font-family: ui-monospace, monospace; color: #eee; }
+      [hidden] { display: none !important; }
       #game { display: block; width: 100vw; height: 100vh; }
+
       #crosshair { position: fixed; left: 50%; top: 50%; width: 24px; height: 24px; transform: translate(-50%,-50%); pointer-events: none; }
       #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #e8fff0; box-shadow: 0 0 2px #000; }
       #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
       #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
       #crosshair.hit::before, #crosshair.hit::after { background: #ff4d4d; box-shadow: 0 0 4px #ff0000; }
-      #banner { position: fixed; left: 50%; top: 16%; transform: translateX(-50%); font-size: 26px; font-weight: bold; color: #ffe; text-shadow: 0 2px 6px #000; pointer-events: none; }
+
       #hud { position: fixed; inset: 0; pointer-events: none; padding: 12px; }
       #status { font-size: 14px; text-shadow: 0 1px 2px #000; }
+      #banner { position: fixed; left: 50%; top: 16%; transform: translateX(-50%); font-size: 26px; font-weight: bold; color: #ffe; text-shadow: 0 2px 6px #000; }
       #hp { position: fixed; left: 12px; bottom: 12px; font-size: 28px; font-weight: bold; text-shadow: 0 1px 2px #000; }
       #scoreboard { position: fixed; right: 12px; top: 12px; font-size: 13px; text-align: right; line-height: 1.5; text-shadow: 0 1px 2px #000; }
-      #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.6); pointer-events: auto; }
-      /* explicit display:flex above beats the UA [hidden] rule, so hide explicitly */
-      [hidden] { display: none !important; }
-      #overlay .card { background: #1b1b1b; border: 1px solid #333; padding: 24px 28px; border-radius: 10px; text-align: center; }
-      #overlay h1 { font-size: 20px; margin-bottom: 6px; }
-      #overlay p { font-size: 13px; color: #aaa; margin-bottom: 16px; }
-      #overlay button { font: inherit; padding: 8px 18px; background: #3b82f6; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
-      #overlay button:disabled { opacity: .6; cursor: default; }
-      #error { margin-top: 16px; font-size: 11px; color: #cbd5e1; line-height: 1.5; max-width: 420px; max-height: 200px; overflow-y: auto; text-align: left; white-space: pre-wrap; background:#0d0d0d; border:1px solid #2a2a2a; border-radius:6px; padding: 8px; }
+      #hint { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 12px; color: #cbd5e1; text-shadow: 0 1px 2px #000; }
+      #quit { position: fixed; right: 12px; bottom: 12px; pointer-events: auto; font: inherit; font-size: 12px; padding: 6px 12px; background: #333a; color: #fff; border: 1px solid #555; border-radius: 6px; cursor: pointer; }
+
+      /* Game center */
+      #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 30%, #1d2733, #0c0f14); }
+      #overlay .card { background: #161a20; border: 1px solid #2a3038; padding: 28px 32px; border-radius: 12px; text-align: center; max-width: 720px; }
+      #overlay h1 { font-size: 24px; margin-bottom: 4px; letter-spacing: 1px; }
+      #overlay p { font-size: 13px; color: #9aa4b2; margin-bottom: 20px; }
+      #fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+      .field { background: #1d232b; border: 1px solid #2c333d; border-radius: 10px; padding: 16px; text-align: left; transition: border-color .15s, transform .1s; }
+      .field:hover { border-color: #3b82f6; transform: translateY(-2px); }
+      .field h3 { font-size: 15px; margin-bottom: 4px; }
+      .field .count { font-size: 12px; color: #8b98a8; margin-bottom: 12px; }
+      .field .count b { color: #39d353; }
+      .field button { font: inherit; width: 100%; padding: 7px; background: #3b82f6; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+      .field button:disabled { opacity: .6; cursor: default; }
+      #error { margin-top: 16px; font-size: 11px; color: #cbd5e1; line-height: 1.5; max-height: 160px; overflow-y: auto; text-align: left; white-space: pre-wrap; background:#0d0d0d; border:1px solid #2a2a2a; border-radius:6px; padding: 8px; }
       #error:empty { display: none; }
-      select { font: inherit; margin: 0 6px; padding: 4px; background:#222; color:#eee; border:1px solid #444; border-radius:4px;}
     </style>
   </head>
   <body>
     <canvas id="game"></canvas>
+
     <div id="crosshair" hidden></div>
     <div id="hud" hidden>
       <div id="status"></div>
       <div id="banner"></div>
       <div id="hp"></div>
       <div id="scoreboard"></div>
+      <div id="hint">WASD move · mouse aim · click/hold to shoot · Esc to release mouse</div>
     </div>
+    <button id="quit" hidden>⏻ Leave to Game Center</button>
+
     <div id="overlay">
       <div class="card">
-        <h1>Counter-Strike POC</h1>
-        <p>Pick a field, then click the canvas to lock the mouse. WASD to move, mouse to aim, click to shoot.</p>
-        <label>Field
-          <select id="map">
-            <option value="arena">Arena</option>
-            <option value="dust-lite">Dust Lite</option>
-            <option value="warehouse">Warehouse</option>
-            <option value="office">Office</option>
-            <option value="bridge">Bridge</option>
-          </select>
-        </label>
-        <br /><br />
-        <button id="play">Join match</button>
+        <h1>Counter-Strike · Game Center</h1>
+        <p>Pick a field to join. Live player counts update in real time.</p>
+        <div id="fields"></div>
         <div id="error"></div>
       </div>
     </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

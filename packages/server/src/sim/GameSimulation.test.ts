@@ -179,8 +179,32 @@ describe("GameSimulation — T-050: combat (damage, headshot, death, kill credit
     pose(sim, "shooter", 0, 0, 0, 0);
     pose(sim, "target", 0, 0, 5, 0);
     sim.firingEnabled = false;
-    expect(sim.fireShot("shooter").hit).toBe(false);
+    const res = sim.fireShot("shooter");
+    expect(res.fired).toBe(false);
+    expect(res.hit).toBe(false);
     expect(sim.get("target")!.hp).toBe(PLAYER_MAX_HP);
+  });
+
+  it("reports trajectory geometry (origin at the eye, end at the impact / range)", () => {
+    const sim = newSim();
+    sim.addPlayer("shooter");
+    sim.addPlayer("target");
+    pose(sim, "shooter", 0, 0, 0, 0);
+    pose(sim, "target", 0, 0, 5, 0);
+
+    const hit = sim.fireShot("shooter");
+    expect(hit.fired).toBe(true);
+    expect(hit.hit).toBe(true);
+    expect(hit.origin.y).toBeGreaterThan(0); // eye height
+    expect(hit.end.z).toBeGreaterThan(0); // impact point in front
+
+    // miss → end is out at weapon range, well past where the target was
+    pose(sim, "shooter", 0, 0, 0, Math.PI); // face away
+    sim.get("target")!.alive = true;
+    const miss = sim.fireShot("shooter");
+    expect(miss.fired).toBe(true);
+    expect(miss.hit).toBe(false);
+    expect(Math.hypot(miss.end.x - miss.origin.x, miss.end.z - miss.origin.z)).toBeGreaterThan(10);
   });
 });
 

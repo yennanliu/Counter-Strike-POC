@@ -1,14 +1,18 @@
 /**
  * DOM input — pointer-lock mouse-look + keyboard, delegating to the pure mapping
- * functions. Exposes the current KeyState, yaw/pitch, and a one-shot fire flag.
+ * functions. Supports click-and-hold auto-fire (rate-limited) for easier play.
  */
 import { keyToAction, applyMouseDelta, type KeyState } from "./mapping.js";
+
+/** Auto-fire cadence while the mouse is held (ms between shots). */
+const FIRE_INTERVAL_MS = 140;
 
 export class Controls {
   readonly keys: KeyState = { forward: false, back: false, left: false, right: false };
   yaw = 0;
   pitch = 0;
-  private fireQueued = false;
+  private mouseDown = false;
+  private lastShot = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
@@ -19,13 +23,16 @@ export class Controls {
       const action = keyToAction(e.code);
       if (action) this.keys[action] = false;
     });
-    canvas.addEventListener("click", () => {
+
+    canvas.addEventListener("mousedown", () => {
       if (document.pointerLockElement !== canvas) {
         void canvas.requestPointerLock();
       } else {
-        this.fireQueued = true;
+        this.mouseDown = true;
       }
     });
+    window.addEventListener("mouseup", () => (this.mouseDown = false));
+
     window.addEventListener("mousemove", (e) => {
       if (document.pointerLockElement !== canvas) return;
       const next = applyMouseDelta(this.yaw, this.pitch, e.movementX, e.movementY);
@@ -38,10 +45,11 @@ export class Controls {
     return document.pointerLockElement === this.canvas;
   }
 
-  /** Returns true once per click, then resets. */
-  consumeFire(): boolean {
-    const f = this.fireQueued;
-    this.fireQueued = false;
-    return f;
+  /** True at most once per FIRE_INTERVAL_MS while the mouse is held & locked. */
+  consumeFire(nowMs: number): boolean {
+    if (!this.mouseDown || !this.locked) return false;
+    if (nowMs - this.lastShot < FIRE_INTERVAL_MS) return false;
+    this.lastShot = nowMs;
+    return true;
   }
 }

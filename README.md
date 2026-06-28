@@ -63,13 +63,14 @@ pnpm --filter @cs/server dev      # 1) authoritative server  → ws://localhost:
 pnpm --filter @cs/client dev      # 2) browser client (Vite) → http://localhost:5173
 ```
 
-Open http://localhost:5173, pick a field, click **Join match**, then click the
-canvas to lock the mouse. **WASD** move, **mouse** aim, **click** shoot (you have a
-gun viewmodel + crosshair; shots show a muzzle flash/tracer and a hitmarker on
-kills). Each round opens with a short **GET READY** freeze where firing is
-disabled — shoot once it goes **live**. Open a second tab/browser to play against
-yourself. The 5 fields each have distinct geometry and visual themes (desert,
-industrial, office, etc.).
+Open http://localhost:5173 → the **Game Center** lists the 5 fields with live
+player counts. Click **Join** on a field, then click the canvas to lock the mouse.
+**WASD** move, **mouse** aim, **click or hold** to shoot (gun viewmodel + crosshair;
+shots show a tracer, impact, floating damage numbers, and a hitmarker; players have
+HP bars). **⏻ Leave to Game Center** returns to the lobby. Each round opens with a
+short **GET READY** freeze (firing disabled) before it goes **live**. Open a second
+tab/browser to play against yourself. The 5 fields have distinct geometry and
+themes (desert, industrial, office, etc.).
 
 ### E2E
 

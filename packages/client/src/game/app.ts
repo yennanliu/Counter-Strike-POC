@@ -19,7 +19,7 @@ import { Predictor } from "../net/prediction.js";
 import { InterpolationBuffer } from "../net/interpolation.js";
 import { keysToMoveVec } from "../input/mapping.js";
 import { scoreboardFrom } from "./scoreboard.js";
-import type { Team } from "../net/types.js";
+import type { Team, ShotEvent } from "../net/types.js";
 
 interface Hud {
   status: HTMLElement;
@@ -31,6 +31,11 @@ interface Hud {
 
 export type Logger = (msg: string) => void;
 
+/** Handle returned by startGame so the caller can leave back to the game center. */
+export interface GameSession {
+  leave: () => void;
+}
+
 const noColliders = { colliders: [] as AABB[] };
 const now = () => performance.now() / 1000;
 
@@ -40,7 +45,7 @@ export async function startGame(
   endpoint: string,
   mapId: string,
   log: Logger = (m) => console.log("[cs]", m),
-): Promise<void> {
+): Promise<GameSession> {
   log(`connecting to ${endpoint} · map=${mapId}`);
   const client = new Client(endpoint);
 
@@ -87,9 +92,9 @@ export async function startGame(
   // predictor is created lazily on the first state patch that includes us.
   let predictor: Predictor | null = null;
   const remotes = new Map<string, InterpolationBuffer>();
+  const remoteYaw = new Map<string, number>();
   let seq = 0;
   let stateCount = 0;
-  let lastKills = 0;
 
   // Reconcile local + buffer remotes whenever the server patches state.
   room.onStateChange(() => {
@@ -103,8 +108,7 @@ export async function startGame(
       if (id === localId) {
         if (!predictor) {
           predictor = new Predictor({ x: p.x, y: p.y, z: p.z }, noColliders);
-          // Face the map center on spawn so you look toward the action, not away.
-          controls.yaw = Math.atan2(-p.x, -p.z);
+          controls.yaw = Math.atan2(-p.x, -p.z); // face the map center on spawn
           log(`local player spawned at (${p.x.toFixed(1)}, ${p.z.toFixed(1)}) team=${p.team}`);
         }
         predictor.reconcile({
@@ -117,28 +121,37 @@ export async function startGame(
       let buf = remotes.get(id);
       if (!buf) remotes.set(id, (buf = new InterpolationBuffer()));
       buf.add({ t: now(), pos: { x: p.x, y: p.y, z: p.z } });
-      scene.getMesh(id)!.rotation.y = p.yaw;
+      remoteYaw.set(id, p.yaw);
+      scene.setHp(id, p.hp, p.alive);
     });
     for (const id of [...remotes.keys()]) {
       if (!present.has(id)) {
         remotes.delete(id);
+        remoteYaw.delete(id);
         scene.removePlayer(id);
       }
     }
     updateHud(hud, room, localId);
+  });
 
-    // Hitmarker: flash the crosshair red when we get a kill.
-    const me = room.state.players.get(localId) as PlayerSchema | undefined;
-    if (me && me.kills > lastKills) {
-      lastKills = me.kills;
-      hud.crosshair.classList.add("hit");
-      setTimeout(() => hud.crosshair.classList.remove("hit"), 150);
+  // Trajectory + impact + damage feedback for every shot (authoritative).
+  room.onMessage("shot", (e: ShotEvent) => {
+    const t = performance.now();
+    scene.tracer({ x: e.ox, y: e.oy, z: e.oz }, { x: e.ex, y: e.ey, z: e.ez }, t);
+    if (e.hit) {
+      const at = { x: e.ex, y: e.ey, z: e.ez };
+      scene.impact(at, e.killed, t);
+      scene.damagePopup(at, e.head ? `${e.dmg}!` : `${e.dmg}`, e.head ? "#ff5252" : "#ffd166", t);
+      if (e.by === localId) {
+        hud.crosshair.classList.add("hit");
+        setTimeout(() => hud.crosshair.classList.remove("hit"), 120);
+      }
     }
   });
 
   // Fixed-rate input: sample → send → predict locally (once we know our spawn).
-  setInterval(() => {
-    const fired = controls.consumeFire();
+  const inputTimer = setInterval(() => {
+    const fired = controls.consumeFire(performance.now());
     const cmd: InputCommand = {
       seq: ++seq,
       moveVec: keysToMoveVec(controls.keys),
@@ -152,12 +165,14 @@ export async function startGame(
   }, 1000 / TICK_RATE);
 
   // Render at display refresh.
+  let raf = 0;
   const loop = () => {
     const t = now();
     for (const [id, buf] of remotes) {
       const p = buf.sample(t);
-      if (p) scene.getMesh(id)?.position.set(p.x, p.y + PLAYER_EYE_HEIGHT / 2, p.z);
+      if (p) scene.updatePlayer(id, p, remoteYaw.get(id) ?? 0);
     }
+    scene.update(performance.now());
     const eye = predictor?.position ?? { x: 0, y: 0, z: 0 };
     renderer.setView(
       { x: eye.x, y: eye.y + PLAYER_EYE_HEIGHT, z: eye.z },
@@ -165,10 +180,20 @@ export async function startGame(
       controls.pitch,
     );
     renderer.render(scene.scene);
-    requestAnimationFrame(loop);
+    raf = requestAnimationFrame(loop);
   };
-  requestAnimationFrame(loop);
+  raf = requestAnimationFrame(loop);
   log("✓ in game (render loop running)");
+
+  return {
+    leave: () => {
+      clearInterval(inputTimer);
+      cancelAnimationFrame(raf);
+      void room.leave();
+      delete (globalThis as unknown as { __cs?: unknown }).__cs;
+      log("left the match");
+    },
+  };
 }
 
 interface PlayerSchema {

@@ -1,6 +1,18 @@
 /** Client-side mirrors of the synced server schema (kept independent of @cs/server). */
 export type Team = "T" | "CT";
 
+/** Broadcast by the server on every shot (see GameRoom). */
+export interface ShotEvent {
+  by: string;
+  ox: number; oy: number; oz: number;
+  ex: number; ey: number; ez: number;
+  hit: boolean;
+  target: string;
+  dmg: number;
+  head: boolean;
+  killed: boolean;
+}
+
 export interface PlayerView {
   id: string;
   x: number;
