@@ -5,7 +5,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "deploy": "bash deploy.sh"
   },
   "devDependencies": {
     "@types/jest": "^30",
