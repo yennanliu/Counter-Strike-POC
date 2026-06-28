@@ -1,0 +1,32 @@
+# Counter-Strike POC — game server image (AWS infra Phase 1).
+# Built by CDK (ContainerImage.fromAsset) with the repo root as context.
+FROM node:22-bookworm-slim
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable
+
+WORKDIR /app
+
+# Workspace + per-package manifests first (better layer caching on deps).
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
+COPY packages/shared/package.json packages/shared/package.json
+COPY packages/server/package.json packages/server/package.json
+COPY packages/client/package.json packages/client/package.json
+
+# Install only the server subtree (+ its workspace deps). Builds esbuild (for tsx);
+# msgpackr-extract stays ignored (pure-JS fallback) per pnpm-workspace.yaml.
+RUN pnpm install --frozen-lockfile --filter @cs/server...
+
+# Server + shared source (client source is not needed by the server).
+COPY packages/shared packages/shared
+COPY packages/server packages/server
+
+ENV NODE_ENV=production
+ENV PORT=2567
+EXPOSE 2567
+
+# Run from the server package so tsx picks up packages/server/tsconfig.json
+# (useDefineForClassFields:false — required for @colyseus/schema encoding).
+WORKDIR /app/packages/server
+CMD ["node", "--import", "tsx", "src/main.ts"]

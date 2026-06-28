@@ -1,17 +1,41 @@
-import * as cdk from 'aws-cdk-lib/core';
-import { Template, Match } from 'aws-cdk-lib/assertions';
-import * as CsInfraStack from '../lib/cs-infra-stack-stack';
+import * as cdk from "aws-cdk-lib";
+import { Template, Match } from "aws-cdk-lib/assertions";
+import { CsInfraStackStack } from "../lib/cs-infra-stack-stack";
 
-test('SQS Queue and SNS Topic Created', () => {
-  const app = new cdk.App();
-  // WHEN
-  const stack = new CsInfraStack.CsInfraStackStack(app, 'MyTestStack');
-  // THEN
+const synth = (id: string) =>
+  Template.fromStack(
+    new CsInfraStackStack(new cdk.App(), id, {
+      env: { account: "111111111111", region: "us-east-1" },
+    }),
+  );
 
-  const template = Template.fromStack(stack);
+test("Phase 1: single ECS node + ALB + CloudFront, and stays light", () => {
+  const t = synth("Test1");
+  t.resourceCountIs("AWS::ECS::Service", 1);
+  t.hasResourceProperties("AWS::ECS::Service", { DesiredCount: 1 });
+  t.resourceCountIs("AWS::ElasticLoadBalancingV2::LoadBalancer", 1);
+  t.resourceCountIs("AWS::CloudFront::Distribution", 1);
+  t.resourceCountIs("AWS::S3::Bucket", 1);
 
-  template.hasResourceProperties('AWS::SQS::Queue', {
-    VisibilityTimeout: 300
+  // Phase 1 deliberately omits: database, cache, and NAT gateway.
+  t.resourceCountIs("AWS::RDS::DBInstance", 0);
+  t.resourceCountIs("AWS::ElastiCache::CacheCluster", 0);
+  t.resourceCountIs("AWS::EC2::NatGateway", 0);
+});
+
+test("game target group: WebSocket sticky sessions + /matchmake health check", () => {
+  const t = synth("Test2");
+  t.hasResourceProperties("AWS::ElasticLoadBalancingV2::TargetGroup", {
+    HealthCheckPath: "/matchmake",
+    TargetGroupAttributes: Match.arrayWith([
+      Match.objectLike({ Key: "stickiness.enabled", Value: "true" }),
+    ]),
   });
-  template.resourceCountIs('AWS::SNS::Topic', 1);
+});
+
+test("Fargate task runs on ARM64", () => {
+  const t = synth("Test3");
+  t.hasResourceProperties("AWS::ECS::TaskDefinition", {
+    RuntimePlatform: { CpuArchitecture: "ARM64", OperatingSystemFamily: "LINUX" },
+  });
 });

@@ -6,3 +6,6 @@ node_modules
 # CDK asset staging directory
 .cdk.staging
 cdk.out
+
+# Environment-specific context cache (regenerated per account/region)
+cdk.context.json

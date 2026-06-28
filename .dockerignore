@@ -1,0 +1,13 @@
+# Keep the server image build context small.
+**/node_modules
+**/dist
+**/coverage
+cs-infra-stack
+e2e
+data
+*.tsbuildinfo
+.git
+.github
+doc
+**/*.test.ts
+playwright.config.ts
