@@ -14,11 +14,13 @@ COPY packages/shared/package.json packages/shared/package.json
 COPY packages/server/package.json packages/server/package.json
 COPY packages/client/package.json packages/client/package.json
 
-# Full workspace install (NOT --filter): pnpm only honors the build-approval
-# settings (onlyBuiltDependencies / ignoredBuiltDependencies in pnpm-workspace.yaml)
-# on a full install, so this is what builds esbuild (needed by tsx) while ignoring
-# msgpackr-extract — exactly like CI's test job.
-RUN pnpm install --frozen-lockfile
+# Install WITHOUT running package build scripts — sidesteps pnpm's build-approval
+# gate entirely (which otherwise fails the fresh install on esbuild/msgpackr-extract).
+# Then explicitly build just esbuild's native binary (tsx needs it; its "build" only
+# downloads a prebuilt binary, no toolchain). msgpackr-extract is left unbuilt —
+# msgpackr falls back to pure JS.
+RUN pnpm install --frozen-lockfile --ignore-scripts \
+ && pnpm rebuild esbuild
 
 # Server + shared source (client source is not needed by the server).
 COPY packages/shared packages/shared

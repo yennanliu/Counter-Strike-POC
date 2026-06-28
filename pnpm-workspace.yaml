@@ -6,7 +6,7 @@ onlyBuiltDependencies:
   - esbuild
 
 # msgpackr-extract is an optional native accel for msgpackr (Colyseus); the pure-JS
-# fallback is fine, so don't build it — and don't fail CI over the skipped script.
+# fallback is fine, so don't build it.
 ignoredBuiltDependencies:
   - msgpackr-extract
 
