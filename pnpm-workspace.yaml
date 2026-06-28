@@ -1,10 +1,14 @@
 packages:
   - "packages/*"
 
-allowBuilds:
-  esbuild: true
-  msgpackr-extract: set this to true or false
-
-# esbuild ships a postinstall that fetches its native binary; vitest needs it.
+# esbuild needs its native binary (vitest); build it.
 onlyBuiltDependencies:
   - esbuild
+
+# msgpackr-extract is an optional native accel for msgpackr (Colyseus); the pure-JS
+# fallback is fine, so don't build it — and don't fail CI over the skipped script.
+ignoredBuiltDependencies:
+  - msgpackr-extract
+
+allowBuilds:
+  esbuild: set this to true or false
