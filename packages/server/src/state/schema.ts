@@ -19,6 +19,7 @@ export class PlayerState extends Schema {
   kills = 0;
   deaths = 0;
   assists = 0;
+  weapon = "rifle";
 }
 defineTypes(PlayerState, {
   x: "number",
@@ -33,6 +34,7 @@ defineTypes(PlayerState, {
   kills: "number",
   deaths: "number",
   assists: "number",
+  weapon: "string",
 });
 
 export class GameState extends Schema {
@@ -42,6 +44,15 @@ export class GameState extends Schema {
   roundNumber = 1;
   scoreT = 0;
   scoreCT = 0;
+  // Bomb (defusal mode)
+  bombActive = false;
+  bombPlanted = false;
+  bombX = 0;
+  bombY = 0;
+  bombZ = 0;
+  bombTimeLeft = 0;
+  plantProgress = 0;
+  defuseProgress = 0;
   players = new MapSchema<PlayerState>();
 }
 defineTypes(GameState, {
@@ -50,5 +61,13 @@ defineTypes(GameState, {
   roundNumber: "number",
   scoreT: "number",
   scoreCT: "number",
+  bombActive: "boolean",
+  bombPlanted: "boolean",
+  bombX: "number",
+  bombY: "number",
+  bombZ: "number",
+  bombTimeLeft: "number",
+  plantProgress: "number",
+  defuseProgress: "number",
   players: { map: PlayerState },
 });

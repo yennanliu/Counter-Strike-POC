@@ -11,6 +11,11 @@
 
 ---
 
+> **Implemented since v1:** A1 recoil/spread · A3 hit-confirm + directional damage ·
+> A5 bomb defusal · C1 real map geometry · C2 map variety + bomb sites · plus 6
+> weapons (pistol/rifle/smg/sniper/shotgun/deagle) with weapon switching. The rows
+> below stay as the running backlog.
+
 ## 0. Guiding principle (don't lose this)
 
 CS 1.6 is ~20 years of iteration; we are a ~2,900-line browser POC. The goal is

@@ -65,12 +65,18 @@ pnpm --filter @cs/client dev      # 2) browser client (Vite) → http://localhos
 
 Open http://localhost:5173 → the **Game Center** lists the 5 fields with live
 player counts. Click **Join** on a field, then click the canvas to lock the mouse.
-**WASD** move, **mouse** aim, **click or hold** to shoot (gun viewmodel + crosshair;
-shots show a tracer, impact, floating damage numbers, and a hitmarker; players have
-HP bars). **⏻ Leave to Game Center** returns to the lobby. Each round opens with a
-short **GET READY** freeze (firing disabled) before it goes **live**. Open a second
-tab/browser to play against yourself. The 5 fields have distinct geometry and
-themes (desert, industrial, office, etc.).
+
+**Controls:** **WASD** move · **mouse** aim · **click/hold** shoot · **1-6** switch
+weapon (pistol / rifle / smg / sniper / shotgun / deagle) · **E** plant or defuse
+the bomb · **Esc** release mouse · **⏻ Leave to Game Center**.
+
+Guns have **recoil & spread** (first shot is accurate; spraying widens — tap to
+stay precise). Shots render a tracer + impact + floating damage; you get a
+hitmarker on hits and a **directional damage indicator** when hit; players show HP
+bars. Each field has **two bomb sites** — T can plant (hold **E** in a site), CT
+can defuse (hold **E** by the bomb); rounds also end on elimination or timer. The 5
+fields have distinct geometry, cover, and themes (desert, industrial, office, …).
+Open a second tab to play against yourself.
 
 ### E2E
 

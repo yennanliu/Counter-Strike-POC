@@ -67,6 +67,10 @@ export class GameRoom extends Room<GameState> {
       this.startedAt = Date.now();
     }
 
+    this.onMessage("weapon", (client: Client, weapon: string) => {
+      this.sim.setWeapon(client.sessionId, weapon);
+    });
+
     this.onMessage("input", (client: Client, cmd: InputCommand) => {
       const accepted = this.sim.applyInput(client.sessionId, cmd);
       this.recorder?.recordInput(this.tickCount, client.sessionId, cmd);
@@ -105,11 +109,25 @@ export class GameRoom extends Room<GameState> {
 
   private tick(): void {
     this.tickCount += 1;
+    this.sim.tick = this.tickCount;
+    this.sim.updateBomb();
     this.rounds.update();
+
     this.state.phase = this.rounds.phase;
     this.state.roundNumber = this.rounds.round;
     this.state.scoreT = this.rounds.scores.T;
     this.state.scoreCT = this.rounds.scores.CT;
+
+    const b = this.sim.bomb;
+    this.state.bombActive = b.active;
+    this.state.bombPlanted = b.planted;
+    this.state.bombX = b.pos?.x ?? 0;
+    this.state.bombY = b.pos?.y ?? 0;
+    this.state.bombZ = b.pos?.z ?? 0;
+    this.state.bombTimeLeft = this.sim.bombTimeLeft();
+    this.state.plantProgress = b.plantProgress;
+    this.state.defuseProgress = b.defuseProgress;
+
     for (const id of this.sim.players.keys()) this.syncPlayer(id);
 
     if (this.recorder && this.tickCount % TICK_RATE === 0) {
@@ -173,5 +191,6 @@ export class GameRoom extends Room<GameState> {
     ps.kills = s.kills;
     ps.deaths = s.deaths;
     ps.assists = s.assists;
+    ps.weapon = s.weapon;
   }
 }

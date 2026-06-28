@@ -68,12 +68,21 @@ export class RoundManager {
   }
 
   private updateLive(): void {
+    const bomb = this.sim.bomb;
+    // Bomb outcomes take priority.
+    if (bomb.active) {
+      if (bomb.defused) return this.endRound("CT");
+      if (bomb.detonated) return this.endRound("T");
+    }
+
     const tAlive = this.sim.aliveCount("T");
     const ctAlive = this.sim.aliveCount("CT");
 
-    if (this.sim.teamCount("T") > 0 && tAlive === 0) return this.endRound("CT");
+    // CT win by wiping T only if the bomb isn't planted (planted bomb keeps ticking).
+    if (this.sim.teamCount("T") > 0 && tAlive === 0 && !bomb.planted) return this.endRound("CT");
     if (this.sim.teamCount("CT") > 0 && ctAlive === 0) return this.endRound("T");
-    if (this.ticksInPhase >= this.cfg.roundTicks) return this.endRound("CT"); // timer → defenders
+    // Round timer only ends it when no bomb is down (defenders win on time).
+    if (!bomb.planted && this.ticksInPhase >= this.cfg.roundTicks) return this.endRound("CT");
   }
 
   private enterFreeze(): void {

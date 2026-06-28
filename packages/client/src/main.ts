@@ -15,8 +15,12 @@ const hud = {
   crosshair: document.getElementById("crosshair")!,
   status: document.getElementById("status")!,
   banner: document.getElementById("banner")!,
+  bombhud: document.getElementById("bombhud")!,
   hp: document.getElementById("hp")!,
+  weapon: document.getElementById("weapon")!,
   scoreboard: document.getElementById("scoreboard")!,
+  dmgflash: document.getElementById("dmgflash")!,
+  dmgdir: document.getElementById("dmgdir")!,
 };
 
 function log(msg: string): void {

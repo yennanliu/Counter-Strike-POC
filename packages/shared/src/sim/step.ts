@@ -18,6 +18,8 @@ export interface InputCommand {
   pitch?: number;
   /** Whether the player fired this tick. */
   fire?: boolean;
+  /** Whether the "use" key (plant/defuse) is held this tick. */
+  use?: boolean;
 }
 
 export function applyInput(

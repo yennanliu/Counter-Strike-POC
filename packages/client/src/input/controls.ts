@@ -2,7 +2,7 @@
  * DOM input — pointer-lock mouse-look + keyboard, delegating to the pure mapping
  * functions. Supports click-and-hold auto-fire (rate-limited) for easier play.
  */
-import { keyToAction, applyMouseDelta, type KeyState } from "./mapping.js";
+import { keyToAction, keyToWeapon, applyMouseDelta, type KeyState } from "./mapping.js";
 
 /** Auto-fire cadence while the mouse is held (ms between shots). */
 const FIRE_INTERVAL_MS = 140;
@@ -11,17 +11,23 @@ export class Controls {
   readonly keys: KeyState = { forward: false, back: false, left: false, right: false };
   yaw = 0;
   pitch = 0;
+  use = false;
   private mouseDown = false;
   private lastShot = 0;
+  private pendingWeapon: string | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", (e) => {
       const action = keyToAction(e.code);
       if (action) this.keys[action] = true;
+      if (e.code === "KeyE") this.use = true;
+      const w = keyToWeapon(e.code);
+      if (w) this.pendingWeapon = w;
     });
     window.addEventListener("keyup", (e) => {
       const action = keyToAction(e.code);
       if (action) this.keys[action] = false;
+      if (e.code === "KeyE") this.use = false;
     });
 
     canvas.addEventListener("mousedown", () => {
@@ -51,5 +57,12 @@ export class Controls {
     if (nowMs - this.lastShot < FIRE_INTERVAL_MS) return false;
     this.lastShot = nowMs;
     return true;
+  }
+
+  /** Returns a pending weapon-switch (from number keys), once. */
+  consumeWeapon(): string | null {
+    const w = this.pendingWeapon;
+    this.pendingWeapon = null;
+    return w;
   }
 }

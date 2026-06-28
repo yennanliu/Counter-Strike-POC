@@ -88,5 +88,6 @@ export function arenaFromManifest(m: MapManifest): Arena {
     spawnsT: m.spawns.T,
     spawnsCT: m.spawns.CT,
     colliders: m.colliders,
+    bombSites: m.bombSites,
   };
 }

@@ -28,6 +28,20 @@ export function keysToMoveVec(k: KeyState): { x: number; z: number } {
   return { x, z };
 }
 
+const WEAPON_KEYS: Record<string, string> = {
+  Digit1: "pistol",
+  Digit2: "rifle",
+  Digit3: "smg",
+  Digit4: "sniper",
+  Digit5: "shotgun",
+  Digit6: "deagle",
+};
+
+/** Map a number-row key to a weapon id, or null. */
+export function keyToWeapon(code: string): string | null {
+  return WEAPON_KEYS[code] ?? null;
+}
+
 /** Map a KeyboardEvent.code to a movement action, or null if unbound. */
 export function keyToAction(code: string): keyof KeyState | null {
   switch (code) {

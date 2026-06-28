@@ -35,18 +35,38 @@ export const HEADSHOT_MULTIPLIER = 4;
 
 export interface WeaponSpec {
   readonly name: string;
-  /** Base body damage per shot. */
+  /** Base body damage per shot (per pellet for shotguns). */
   readonly damage: number;
   /** Effective range, in world units. */
   readonly range: number;
+  /** Inaccuracy cone (radians) per spray shot / per shotgun pellet. */
+  readonly spread: number;
+  /** Extra spread added per consecutive shot (recoil climb). */
+  readonly recoilPerShot: number;
+  /** Hard cap on accumulated spread (radians). */
+  readonly maxSpread: number;
+  /** Minimum seconds between shots (server-enforced fire rate). */
+  readonly fireIntervalSec: number;
+  /** Number of rays per shot (>1 = shotgun). */
+  readonly pellets: number;
 }
 
 export const WEAPONS = {
-  pistol: { name: "pistol", damage: 25, range: 50 },
-  rifle: { name: "rifle", damage: 30, range: 80 },
+  // name        dmg  range  spread recoil  maxSpr  fire   pellets
+  pistol:   { name: "pistol",  damage: 28,  range: 50,  spread: 0.012, recoilPerShot: 0.012, maxSpread: 0.09, fireIntervalSec: 0.18, pellets: 1 },
+  rifle:    { name: "rifle",   damage: 30,  range: 90,  spread: 0.014, recoilPerShot: 0.02,  maxSpread: 0.14, fireIntervalSec: 0.10, pellets: 1 },
+  smg:      { name: "smg",     damage: 22,  range: 60,  spread: 0.020, recoilPerShot: 0.014, maxSpread: 0.16, fireIntervalSec: 0.075, pellets: 1 },
+  sniper:   { name: "sniper",  damage: 120, range: 150, spread: 0.0,   recoilPerShot: 0.05,  maxSpread: 0.20, fireIntervalSec: 1.2,  pellets: 1 },
+  shotgun:  { name: "shotgun", damage: 13,  range: 24,  spread: 0.07,  recoilPerShot: 0.02,  maxSpread: 0.12, fireIntervalSec: 0.8,  pellets: 8 },
+  deagle:   { name: "deagle",  damage: 55,  range: 60,  spread: 0.015, recoilPerShot: 0.05,  maxSpread: 0.12, fireIntervalSec: 0.28, pellets: 1 },
 } as const satisfies Record<string, WeaponSpec>;
 
 export type WeaponId = keyof typeof WEAPONS;
+
+export const DEFAULT_WEAPON: WeaponId = "rifle";
+
+/** A spray resets to first-shot accuracy after this idle gap (seconds). */
+export const BURST_RESET_SEC = 0.25;
 
 /** Starting health. */
 export const PLAYER_MAX_HP = 100;
@@ -60,3 +80,10 @@ export const ROUNDS_TO_WIN = 8;
 
 /** Hard room cap (requirement #4). */
 export const MAX_PLAYERS = 5;
+
+// ── Bomb defusal mode (A5) ────────────────────────────────────────────────────
+export const PLANT_TIME_SEC = 1.2;
+export const DEFUSE_TIME_SEC = 5;
+export const BOMB_TIMER_SEC = 40;
+/** How close a CT must be to the planted bomb to defuse. */
+export const BOMB_DEFUSE_RADIUS = 2.5;

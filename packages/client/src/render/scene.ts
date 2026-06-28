@@ -87,6 +87,7 @@ export class SceneManager {
   readonly scene = new THREE.Scene();
   private readonly players = new Map<string, PlayerVisual>();
   private readonly effects: Effect[] = [];
+  private bombMesh: THREE.Mesh | null = null;
 
   constructor(map?: MapManifest) {
     const theme = map?.theme ?? {
@@ -121,7 +122,33 @@ export class SceneManager {
       for (const [team, pts] of [["CT", map.spawns.CT], ["T", map.spawns.T]] as const) {
         for (const s of pts) this.scene.add(this.spawnPad(s, TEAM_COLOR[team]));
       }
+      for (const site of map.bombSites ?? []) this.scene.add(this.siteMarker(site.area));
     }
+
+    // Planted-bomb marker (hidden until planted).
+    this.bombMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.4, 0.3, 0.4),
+      new THREE.MeshStandardMaterial({ color: 0xff3333, emissive: 0xff0000, emissiveIntensity: 0.7 }),
+    );
+    this.bombMesh.visible = false;
+    this.scene.add(this.bombMesh);
+  }
+
+  private siteMarker(area: { min: Vec3; max: Vec3 }): THREE.Mesh {
+    const sx = area.max.x - area.min.x;
+    const sz = area.max.z - area.min.z;
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(sx, 0.08, sz),
+      new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0.35 }),
+    );
+    m.position.set(area.min.x + sx / 2, 0.05, area.min.z + sz / 2);
+    return m;
+  }
+
+  setBomb(planted: boolean, pos: Vec3): void {
+    if (!this.bombMesh) return;
+    this.bombMesh.visible = planted;
+    if (planted) this.bombMesh.position.set(pos.x, 0.3, pos.z);
   }
 
   private spawnPad(at: Vec3, color: number): THREE.Mesh {

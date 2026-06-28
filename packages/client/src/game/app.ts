@@ -24,9 +24,13 @@ import type { Team, ShotEvent } from "../net/types.js";
 interface Hud {
   status: HTMLElement;
   banner: HTMLElement;
+  bombhud: HTMLElement;
   hp: HTMLElement;
+  weapon: HTMLElement;
   scoreboard: HTMLElement;
   crosshair: HTMLElement;
+  dmgflash: HTMLElement;
+  dmgdir: HTMLElement;
 }
 
 export type Logger = (msg: string) => void;
@@ -132,25 +136,41 @@ export async function startGame(
       }
     }
     updateHud(hud, room, localId);
+    const st = room.state;
+    scene.setBomb(st.bombPlanted, { x: st.bombX, y: st.bombY, z: st.bombZ });
   });
 
   // Trajectory + impact + damage feedback for every shot (authoritative).
   room.onMessage("shot", (e: ShotEvent) => {
     const t = performance.now();
     scene.tracer({ x: e.ox, y: e.oy, z: e.oz }, { x: e.ex, y: e.ey, z: e.ez }, t);
-    if (e.hit) {
-      const at = { x: e.ex, y: e.ey, z: e.ez };
-      scene.impact(at, e.killed, t);
-      scene.damagePopup(at, e.head ? `${e.dmg}!` : `${e.dmg}`, e.head ? "#ff5252" : "#ffd166", t);
-      if (e.by === localId) {
-        hud.crosshair.classList.add("hit");
-        setTimeout(() => hud.crosshair.classList.remove("hit"), 120);
-      }
+    if (!e.hit) return;
+    const at = { x: e.ex, y: e.ey, z: e.ez };
+    scene.impact(at, e.killed, t);
+    scene.damagePopup(at, e.head ? `${e.dmg}!` : `${e.dmg}`, e.head ? "#ff5252" : "#ffd166", t);
+    if (e.by === localId) {
+      hud.crosshair.classList.add("hit");
+      setTimeout(() => hud.crosshair.classList.remove("hit"), 120);
+    }
+    // A3: directional damage indicator when WE are the one hit.
+    if (e.target === localId && predictor) {
+      const me = predictor.position;
+      const rel = Math.atan2(e.ox - me.x, e.oz - me.z) - controls.yaw;
+      hud.dmgdir.style.transform = `rotate(${rel}rad)`;
+      hud.dmgdir.style.opacity = "1";
+      hud.dmgflash.style.opacity = "1";
+      setTimeout(() => {
+        hud.dmgdir.style.opacity = "0";
+        hud.dmgflash.style.opacity = "0";
+      }, 130);
     }
   });
 
   // Fixed-rate input: sample → send → predict locally (once we know our spawn).
   const inputTimer = setInterval(() => {
+    const weaponSwitch = controls.consumeWeapon();
+    if (weaponSwitch) room.send("weapon", weaponSwitch);
+
     const fired = controls.consumeFire(performance.now());
     const cmd: InputCommand = {
       seq: ++seq,
@@ -158,6 +178,7 @@ export async function startGame(
       yaw: controls.yaw,
       pitch: controls.pitch,
       fire: fired,
+      use: controls.use,
     };
     room.send("input", cmd);
     predictor?.predict(cmd);
@@ -207,6 +228,7 @@ interface PlayerSchema {
   kills: number;
   deaths: number;
   assists: number;
+  weapon: string;
   lastProcessedSeq: number;
 }
 
@@ -215,6 +237,7 @@ function updateHud(hud: Hud, room: Room, localId: string): void {
   const me = room.state.players.get(localId) as PlayerSchema | undefined;
   hud.status.textContent = `${s.mapId} · ${s.phase} · round ${s.roundNumber} — CT ${s.scoreCT} : ${s.scoreT} T`;
   hud.hp.textContent = me ? (me.alive ? `♥ ${me.hp}` : "DEAD") : "";
+  hud.weapon.textContent = me ? `▸ ${me.weapon}   [1-6 switch]` : "";
 
   const banner: Record<string, string> = {
     freeze: "GET READY",
@@ -222,6 +245,20 @@ function updateHud(hud: Hud, room: Room, localId: string): void {
     matchOver: "MATCH OVER",
   };
   hud.banner.textContent = me && !me.alive && s.phase === "live" ? "ELIMINATED" : (banner[s.phase] ?? "");
+
+  // Bomb status.
+  if (s.bombActive) {
+    if (s.bombPlanted) {
+      const defuse = s.defuseProgress > 0 ? ` · DEFUSING ${Math.floor(s.defuseProgress * 100)}%` : "";
+      hud.bombhud.textContent = `💣 BOMB DOWN — ${Math.ceil(s.bombTimeLeft)}s${defuse}`;
+    } else if (s.plantProgress > 0) {
+      hud.bombhud.textContent = `PLANTING… ${Math.floor(s.plantProgress * 100)}%`;
+    } else {
+      hud.bombhud.textContent = "";
+    }
+  } else {
+    hud.bombhud.textContent = "";
+  }
 
   const rows: Array<{ id: string; team: Team; kills: number; deaths: number; assists: number }> = [];
   room.state.players.forEach((p: PlayerSchema, id: string) =>
