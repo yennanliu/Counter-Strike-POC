@@ -91,6 +91,10 @@ export class CsInfraStackStack extends Stack {
       assignPublicIp: true, // public subnet → egress to pull the image, no NAT
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       minHealthyPercent: 0, // single task: allow replace-in-place on deploy
+      // Give the container time to cold-start (image pull + tsx transpile + bind)
+      // before the ALB health check can fail the task. Without this, ECS kills the
+      // task mid-startup → repeated failures → deployment circuit breaker.
+      healthCheckGracePeriod: Duration.seconds(120),
       circuitBreaker: { rollback: true },
     });
 
@@ -135,9 +139,10 @@ export class CsInfraStackStack extends Stack {
       healthCheck: {
         path: "/matchmake",
         healthyHttpCodes: "200-404",
-        interval: Duration.seconds(30),
+        interval: Duration.seconds(15),
         timeout: Duration.seconds(5),
         healthyThresholdCount: 2,
+        unhealthyThresholdCount: 5,
       },
       // Keep a client's WebSocket pinned to its task (room affinity).
       stickinessCookieDuration: Duration.hours(2),
