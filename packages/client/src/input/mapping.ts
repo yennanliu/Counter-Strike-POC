@@ -35,6 +35,9 @@ const WEAPON_KEYS: Record<string, string> = {
   Digit4: "sniper",
   Digit5: "shotgun",
   Digit6: "deagle",
+  Digit7: "lmg",
+  Digit8: "carbine",
+  Digit9: "autosniper",
 };
 
 /** Map a number-row key to a weapon id, or null. */

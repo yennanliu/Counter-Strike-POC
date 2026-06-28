@@ -66,9 +66,10 @@ pnpm --filter @cs/client dev      # 2) browser client (Vite) → http://localhos
 Open http://localhost:5173 → the **Game Center** lists the 5 fields with live
 player counts. Click **Join** on a field, then click the canvas to lock the mouse.
 
-**Controls:** **WASD** move · **mouse** aim · **click/hold** shoot · **1-6** switch
-weapon (pistol / rifle / smg / sniper / shotgun / deagle) · **E** plant or defuse
-the bomb · **Esc** release mouse · **⏻ Leave to Game Center**.
+**Controls:** **WASD** move · **mouse** aim · **click/hold** shoot · **1-9** switch
+weapon (pistol / rifle / smg / sniper / shotgun / deagle / machine gun / carbine /
+auto sniper) · **E** plant or defuse the bomb · **Esc** release mouse · **⏻ Leave to
+Game Center**.
 
 Guns have **recoil & spread** (first shot is accurate; spraying widens — tap to
 stay precise). Shots render a tracer + impact + floating damage; you get a

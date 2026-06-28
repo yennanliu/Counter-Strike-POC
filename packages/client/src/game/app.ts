@@ -9,9 +9,13 @@ import {
   TICK_RATE,
   PLAYER_EYE_HEIGHT,
   getMapManifest,
+  WEAPONS,
   type InputCommand,
   type AABB,
 } from "@cs/shared";
+
+const WEAPON_NAME = (id: string): string =>
+  (WEAPONS as Record<string, { name: string }>)[id]?.name ?? id;
 import { SceneManager } from "../render/scene.js";
 import { Renderer } from "../render/renderer.js";
 import { Controls } from "../input/controls.js";
@@ -237,7 +241,7 @@ function updateHud(hud: Hud, room: Room, localId: string): void {
   const me = room.state.players.get(localId) as PlayerSchema | undefined;
   hud.status.textContent = `${s.mapId} · ${s.phase} · round ${s.roundNumber} — CT ${s.scoreCT} : ${s.scoreT} T`;
   hud.hp.textContent = me ? (me.alive ? `♥ ${me.hp}` : "DEAD") : "";
-  hud.weapon.textContent = me ? `▸ ${me.weapon}   [1-6 switch]` : "";
+  hud.weapon.textContent = me ? `▸ ${WEAPON_NAME(me.weapon)}   [1-9 switch]` : "";
 
   const banner: Record<string, string> = {
     freeze: "GET READY",

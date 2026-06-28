@@ -52,13 +52,19 @@ export interface WeaponSpec {
 }
 
 export const WEAPONS = {
-  // name        dmg  range  spread recoil  maxSpr  fire   pellets
-  pistol:   { name: "pistol",  damage: 28,  range: 50,  spread: 0.012, recoilPerShot: 0.012, maxSpread: 0.09, fireIntervalSec: 0.18, pellets: 1 },
-  rifle:    { name: "rifle",   damage: 30,  range: 90,  spread: 0.014, recoilPerShot: 0.02,  maxSpread: 0.14, fireIntervalSec: 0.10, pellets: 1 },
-  smg:      { name: "smg",     damage: 22,  range: 60,  spread: 0.020, recoilPerShot: 0.014, maxSpread: 0.16, fireIntervalSec: 0.075, pellets: 1 },
-  sniper:   { name: "sniper",  damage: 120, range: 150, spread: 0.0,   recoilPerShot: 0.05,  maxSpread: 0.20, fireIntervalSec: 1.2,  pellets: 1 },
-  shotgun:  { name: "shotgun", damage: 13,  range: 24,  spread: 0.07,  recoilPerShot: 0.02,  maxSpread: 0.12, fireIntervalSec: 0.8,  pellets: 8 },
-  deagle:   { name: "deagle",  damage: 55,  range: 60,  spread: 0.015, recoilPerShot: 0.05,  maxSpread: 0.12, fireIntervalSec: 0.28, pellets: 1 },
+  // id           name           dmg  range  spread recoil  maxSpr  fire    pellets
+  pistol:     { name: "pistol",      damage: 28,  range: 50,  spread: 0.012, recoilPerShot: 0.012, maxSpread: 0.09, fireIntervalSec: 0.18,  pellets: 1 },
+  rifle:      { name: "rifle",       damage: 30,  range: 90,  spread: 0.014, recoilPerShot: 0.02,  maxSpread: 0.14, fireIntervalSec: 0.10,  pellets: 1 },
+  smg:        { name: "smg",         damage: 22,  range: 60,  spread: 0.020, recoilPerShot: 0.014, maxSpread: 0.16, fireIntervalSec: 0.075, pellets: 1 },
+  sniper:     { name: "sniper",      damage: 120, range: 150, spread: 0.0,   recoilPerShot: 0.05,  maxSpread: 0.20, fireIntervalSec: 1.2,   pellets: 1 },
+  shotgun:    { name: "shotgun",     damage: 13,  range: 24,  spread: 0.07,  recoilPerShot: 0.02,  maxSpread: 0.12, fireIntervalSec: 0.8,   pellets: 8 },
+  deagle:     { name: "deagle",      damage: 55,  range: 60,  spread: 0.015, recoilPerShot: 0.05,  maxSpread: 0.12, fireIntervalSec: 0.28,  pellets: 1 },
+  // Machine gun: sustained fire, hits hard but sprays wide fast.
+  lmg:        { name: "machine gun", damage: 29,  range: 110, spread: 0.022, recoilPerShot: 0.018, maxSpread: 0.24, fireIntervalSec: 0.07,  pellets: 1 },
+  // Carbine: a lighter, faster, more accurate rifle (lower damage).
+  carbine:    { name: "carbine",     damage: 25,  range: 80,  spread: 0.011, recoilPerShot: 0.015, maxSpread: 0.11, fireIntervalSec: 0.085, pellets: 1 },
+  // Auto sniper: semi-auto sniper rifle — faster than the bolt sniper, less damage.
+  autosniper: { name: "auto sniper", damage: 80,  range: 140, spread: 0.004, recoilPerShot: 0.045, maxSpread: 0.18, fireIntervalSec: 0.4,   pellets: 1 },
 } as const satisfies Record<string, WeaponSpec>;
 
 export type WeaponId = keyof typeof WEAPONS;
