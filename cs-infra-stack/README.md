@@ -27,15 +27,20 @@ CloudFront (OAC) · CloudWatch logs. **No ECR.**
 ECS pulls the image from a registry (not your local Docker), and we don't use ECR —
 so the flow is **build locally → push to Docker Hub → CDK pulls it**.
 
-**One command** (build + push + deploy):
+**One command** (build image + push + deploy infra + build & upload client):
 ```bash
 cd cs-infra-stack
 npm install
 npx cdk bootstrap                                   # once per account/region
 docker login                                        # once
-./deploy.sh docker.io/<user>/cs-server:latest       # build (amd64) + push + cdk deploy
+./deploy.sh docker.io/<user>/cs-server:latest       # image (amd64) + cdk deploy + client → S3/CloudFront
 # add a domain:  ./deploy.sh docker.io/<user>/cs-server:latest -c domainName=example.com -c hostedZoneId=Z...
 ```
+
+`deploy.sh` also builds the browser client and uploads it to S3 + invalidates
+CloudFront. It bakes the game-server URL into the client, resolved as:
+`$VITE_SERVER_URL` → `wss://gs.<domain>` (if `-c domainName=`) → `ws://<ALB-DNS>`
+(no-domain smoke test, rebuilt against the real ALB after the stack comes up).
 
 **Or the manual steps:**
 ```bash
@@ -74,12 +79,14 @@ npx cdk deploy \
 Serves the client at `https://play.example.com` and the game at `wss://gs.example.com`.
 
 ### Without a domain (infra smoke test)
-`npx cdk deploy -c serverImage=…` brings everything up on default domains: client on
+`./deploy.sh …` brings everything up on default domains: client on
 `https://<dist>.cloudfront.net`, server on `ws://<alb-dns>`. The server is live
-(`http://<alb-dns>/matchmake` → 404 = healthy) but the CloudFront-hosted client
-can't reach `ws://` it (mixed content) — use a domain for browser play.
+(`http://<alb-dns>/matchmake` → 404 = healthy) and the client **is** uploaded and
+loads, but the browser blocks its `ws://` connection from the `https://` page
+(mixed content) — so you can see the game center but can't join a match. Use a
+domain (above) for actual browser play.
 
-## Manual client upload (if you didn't build before deploy)
+## Manual client upload (only if not using `deploy.sh` — it does this for you)
 ```bash
 VITE_SERVER_URL=wss://gs.example.com pnpm --filter @cs/client build
 aws s3 sync packages/client/dist s3://<SiteBucketName> --delete
