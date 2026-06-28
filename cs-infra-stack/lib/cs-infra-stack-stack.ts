@@ -2,9 +2,13 @@
  * Counter-Strike POC — AWS infrastructure, Phase 1 (single ECS node).
  * See doc/aws-infra-design.md §2.
  *
- *   - Game server: one ECS Fargate task (ARM64) in a public subnet (no NAT),
- *     behind an ALB with WebSocket support + sticky sessions. No RDS, no Redis.
+ *   - Game server: one ECS Fargate task in a public subnet (no NAT), behind an
+ *     ALB with WebSocket support + sticky sessions. No RDS, no Redis.
  *   - Client: S3 (private) served via CloudFront (HTTPS).
+ *
+ * The server image is PULLED from a public registry (e.g. Docker Hub) — we do NOT
+ * build/push to ECR. Build + push it yourself (or via CI), then pass its ref with
+ * `-c serverImage=docker.io/<user>/cs-server:<tag>`.
  *
  * Optional custom domain (context: domainName + hostedZoneId): adds ACM + Route53
  * so the ALB speaks WSS and CloudFront uses play.<domain>. Deploy in us-east-1 when
@@ -16,7 +20,6 @@ import { Stack, StackProps, Duration, CfnOutput, RemovalPolicy } from "aws-cdk-l
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
-import * as ecrAssets from "aws-cdk-lib/aws-ecr-assets";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
@@ -40,6 +43,12 @@ export class CsInfraStackStack extends Stack {
     const hostedZoneId = this.node.tryGetContext("hostedZoneId") as string | undefined;
     const useDomain = Boolean(domainName && hostedZoneId);
 
+    // Server image pulled from a public registry (no ECR). Override per deploy:
+    //   -c serverImage=docker.io/<your-user>/cs-server:<tag>
+    const serverImage =
+      (this.node.tryGetContext("serverImage") as string | undefined) ??
+      "docker.io/yennanliu/cs-server:latest";
+
     // ── Networking: 2 AZs, public subnets only, no NAT (cost) ──────────────────
     const vpc = new ec2.Vpc(this, "Vpc", {
       maxAzs: 2,
@@ -55,17 +64,18 @@ export class CsInfraStackStack extends Stack {
     const taskDef = new ecs.FargateTaskDefinition(this, "TaskDef", {
       cpu: 512,
       memoryLimitMiB: 1024,
+      // x86_64 matches a default `docker build` / the CI runner — no cross-build
+      // needed when the image is built elsewhere and pulled from the registry.
       runtimePlatform: {
-        cpuArchitecture: ecs.CpuArchitecture.ARM64,
+        cpuArchitecture: ecs.CpuArchitecture.X86_64,
         operatingSystemFamily: ecs.OperatingSystemFamily.LINUX,
       },
     });
 
     taskDef.addContainer("server", {
-      image: ecs.ContainerImage.fromAsset(REPO_ROOT, {
-        file: "Dockerfile.server",
-        platform: ecrAssets.Platform.LINUX_ARM64,
-      }),
+      // Pulled from a public registry (Docker Hub). Make the repo public, or add
+      // `credentials` (Secrets Manager) for a private one.
+      image: ecs.ContainerImage.fromRegistry(serverImage),
       environment: { PORT: String(GAME_PORT), NODE_ENV: "production" },
       portMappings: [{ containerPort: GAME_PORT }],
       logging: ecs.LogDrivers.awsLogs({
@@ -197,5 +207,9 @@ export class CsInfraStackStack extends Stack {
     new CfnOutput(this, "SiteBucketName", { value: siteBucket.bucketName });
     new CfnOutput(this, "CloudFrontDistributionId", { value: distribution.distributionId });
     new CfnOutput(this, "AlbDnsName", { value: alb.loadBalancerDnsName });
+    new CfnOutput(this, "ServerImage", {
+      value: serverImage,
+      description: "Container image pulled by ECS (build+push this to a registry).",
+    });
   }
 }

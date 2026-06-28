@@ -17,10 +17,21 @@ test("Phase 1: single ECS node + ALB + CloudFront, and stays light", () => {
   t.resourceCountIs("AWS::CloudFront::Distribution", 1);
   t.resourceCountIs("AWS::S3::Bucket", 1);
 
-  // Phase 1 deliberately omits: database, cache, and NAT gateway.
+  // Phase 1 deliberately omits: database, cache, NAT gateway, and ECR
+  // (the server image is pulled from a public registry).
   t.resourceCountIs("AWS::RDS::DBInstance", 0);
   t.resourceCountIs("AWS::ElastiCache::CacheCluster", 0);
   t.resourceCountIs("AWS::EC2::NatGateway", 0);
+  t.resourceCountIs("AWS::ECR::Repository", 0);
+});
+
+test("server image is pulled from a registry (default Docker Hub ref)", () => {
+  const t = synth("TestImg");
+  t.hasResourceProperties("AWS::ECS::TaskDefinition", {
+    ContainerDefinitions: Match.arrayWith([
+      Match.objectLike({ Image: "docker.io/yennanliu/cs-server:latest" }),
+    ]),
+  });
 });
 
 test("game target group: WebSocket sticky sessions + /matchmake health check", () => {
@@ -33,9 +44,9 @@ test("game target group: WebSocket sticky sessions + /matchmake health check", (
   });
 });
 
-test("Fargate task runs on ARM64", () => {
+test("Fargate task runs on x86_64", () => {
   const t = synth("Test3");
   t.hasResourceProperties("AWS::ECS::TaskDefinition", {
-    RuntimePlatform: { CpuArchitecture: "ARM64", OperatingSystemFamily: "LINUX" },
+    RuntimePlatform: { CpuArchitecture: "X86_64", OperatingSystemFamily: "LINUX" },
   });
 });
